@@ -2,9 +2,13 @@
 
 Um jogo de skate 2D com estética **"lápis sobre papel pautado"**, feito em um único arquivo HTML com Canvas + JavaScript puro — sem dependências, sem build. É só abrir o `index.html` no navegador.
 
+## 🎮 Jogar online
+
+**https://petribr.github.io/skatebook/**
+
 ## Como jogar
 
-Abra [`index.html`](index.html) no navegador e aperte **Espaço** para começar.
+Abra [`index.html`](index.html) no navegador (ou jogue online no link acima) e aperte **Espaço** para começar.
 
 ### Controles
 
