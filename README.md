@@ -1,5 +1,11 @@
 # Skate Sketch Odyssey ✏️🛹
 
+[![Jogar online](https://img.shields.io/badge/▶%20Jogar%20online-petribr.github.io%2Fskatebook-7a5cc0?style=for-the-badge)](https://petribr.github.io/skatebook/)
+&nbsp;
+![HTML5 Canvas](https://img.shields.io/badge/HTML5-Canvas-e34f26?logo=html5&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-vanilla-f7df1e?logo=javascript&logoColor=black)
+![Sem dependências](https://img.shields.io/badge/depend%C3%AAncias-zero-2a7d2a)
+
 Um jogo de skate 2D com estética **"lápis sobre papel pautado"**, feito em um único arquivo HTML com Canvas + JavaScript puro — sem dependências, sem build. É só abrir o `index.html` no navegador.
 
 ## 🎮 Jogar online
