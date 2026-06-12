@@ -101,6 +101,7 @@ function sfxBank(mult){ const n=[523,659,784,1047,1319]; for(let i=0;i<Math.min(
 function sfxMission(){ tone(659,0,0.16); tone(880,0.12,0.28,0.2); }
 function sfxStar(){ tone(784,0,0.12,0.2); tone(988,0.08,0.12,0.2); tone(1319,0.16,0.26,0.2); }
 function sfxSpecial(){ tone(523,0,0.1,0.22); tone(659,0.08,0.1,0.22); tone(784,0.16,0.1,0.22); tone(1047,0.24,0.32,0.24); noiseBurst(0.3,2200,0.2,'highpass'); }
+function sfxHit(block){ noiseBurst(block?0.08:0.15, block?900:360, block?0.18:0.36, 'lowpass'); if(!block) tone(130,0,0.1,0.16,'square'); }
 function sfxPage(){ noiseBurst(0.34,1600,0.2,'highpass'); }
 
 // ============================================================
@@ -133,6 +134,12 @@ function checkCheat(e){
   if(codeBuf.endsWith('fase2') && state.level===1){  // pula pra Fase 2
     state.level=2; missions=buildMissions2(); curMission=0;
     state.speed=Math.max(state.speed,4.4); showCombo('🔓 Fase 2 desbloqueada!'); sfxMission();
+  }
+  if(codeBuf.endsWith('luta') && state.mode!=='fight'){   // pula pra Fase 3 (luta)
+    player.upgraded=true; state.level=2; enterFight();
+  }
+  if(codeBuf.endsWith('liga') && state.mode!=='fight'){    // pula pra Fase 4 (street league)
+    player.upgraded=true; enterPhase4();
   }
 }
 addEventListener('keyup', e=> keys[e.code]=false);
@@ -189,9 +196,9 @@ const player = {
   onGround:true, holdJump:false,
   bodyAngle:0, capAngle:0, manualTilt:0,
   boardAngle:0, boardFlip:0, boardPop:0,   // rotação + "pop" vertical SÓ do skate
-  trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false
+  trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false
 };
-let state, trail, swirls, dust, comboMsg, scorePop, rails, obstacles, railTimer, bail, pageTurn;
+let state, trail, swirls, dust, comboMsg, scorePop, rails, obstacles, railTimer, bail, pageTurn, fight;
 let missions, curMission, totalScore, chain;
 
 const TRICKS = {
@@ -231,9 +238,10 @@ function buildMissions2(){
 }
 
 function reset(){
-  state={ phase:'start', paused:false, won:false, over:false, scroll:0, speed:3.4, shake:0, lowGrav:0, special:0, level:1 };
+  state={ phase:'start', paused:false, won:false, over:false, scroll:0, speed:3.4, shake:0, lowGrav:0, special:0, level:1, mode:'skate', scoreBase:0 };
+  fight=null;
   Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
-    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false });
+    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false });
   trail=[]; swirls=[]; dust=[]; comboMsg=null; scorePop=[];
   rails=[]; obstacles=[]; railTimer=120; bail=null; pageTurn=null;
   missions=buildMissions(); curMission=0; totalScore=0;
@@ -264,7 +272,7 @@ function chainBank(){
     state.special=Math.min(SPECIAL_MAX2, state.special+total);   // boas manobras enchem o especial
     showCombo(chain.items.map(i=>i.label).join('  +  ') + (mult>1?'   x'+mult:'') + '  =  '+total);
     popScore('+'+total,'trick'); sfxBank(mult);
-    hitMissionMult(mult);
+    hitMissionMult(mult); hitScore();
   }
   chain={ items:[], active:false, grace:0 };
 }
@@ -291,6 +299,16 @@ function landOllie(){
   chainAdd('OLLIE',10);
   hitMission('ollie',1);
 }
+function buildMissions4(){
+  return [
+    { title:'Street League — Classificatória', task:'Marque 3000 pts nesta fase',
+      hint:'mande combos altos sem cair', need:1, prog:0, done:false, type:'score', target:3000 },
+    { title:'Street League — Semifinal', task:'Combo de 8 elementos',
+      hint:'encadeie tudo: trick + grind + manual', need:1, prog:0, done:false, type:'mult', target:8 },
+    { title:'Street League — FINAL', task:'Solte um Especial (S)',
+      hint:'encha a barra e mande o 1080', need:1, prog:0, done:false, type:'special' },
+  ];
+}
 function nextMission(){
   const done=missions[curMission];
   sfxMission(); saveBest();
@@ -301,7 +319,23 @@ function nextMission(){
   }
   if(curMission < missions.length-1){ curMission++; startTurn('play'); }
   else if(state.level===1){ state.level=2; missions=buildMissions2(); curMission=0; state.speed=Math.max(state.speed,4.4); startTurn('play'); }
+  else if(state.level===2){ enterFight(); }                 // virou Mestre -> MODO LUTA (fase 3)
+  else if(state.level===4){ state.won=true; }               // campeão da Street League
   else { state.won=true; }
+}
+function enterPhase4(){
+  state.level=4; state.mode='skate'; fight=null;
+  state.scoreBase=totalScore;
+  Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
+    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0,
+    trick:null, manual:false, grinding:null, crooked:false, didTrick:false });
+  trail=[]; swirls=[]; dust=[]; rails=[]; obstacles=[]; railTimer=120; bail=null;
+  missions=buildMissions4(); curMission=0; state.speed=Math.max(state.speed,5.0);
+  showCombo('🏆 PROFISSIONAL! Street League começou'); startTurn('play');
+}
+function hitScore(){
+  const m=missions[curMission]; if(!m||m.done||m.type!=='score') return;
+  if(totalScore-(state.scoreBase||0) >= m.target){ m.prog=m.need; m.done=true; nextMission(); }
 }
 
 // ============================================================
@@ -380,12 +414,34 @@ function spawnRailGroup(){
 
 // spawner unificado: alterna corrimões e obstáculos espaçando pela largura
 function spawnFeature(){
+  if(state.level===4){ spawnFeatureLeague(); return; }
   const r=Math.random();
   if(r<0.40) spawnRailGroup();
   else if(r<0.55) spawnScooter();
   else if(r<0.70) spawnRamp();
   else if(r<0.86) spawnStairs();
   else spawnStar();
+}
+// Street League: muitas rampas, gaps de grama, corrimão gigante
+function spawnFeatureLeague(){
+  const r=Math.random();
+  if(r<0.20) spawnGiantRail();
+  else if(r<0.46) spawnRamp();
+  else if(r<0.70) spawnGrassGap();
+  else if(r<0.84) spawnRailGroup();
+  else spawnStar();
+}
+function spawnGiantRail(){
+  const w=520+Math.random()*220, h=58+Math.random()*28;
+  rails.push({ x:state.scroll+W+100, w, y1:GROUND-h, y2:GROUND-h, giant:true });
+  spaceAfter(w);
+}
+function spawnGrassGap(){
+  const sx=state.scroll+W+90;
+  obstacles.push({ type:'ramp', x:sx, w:80, h:66, used:false });        // rampa de impulso
+  const gw=110+Math.random()*55;
+  obstacles.push({ type:'grass', x:sx+94, w:gw, h:60, hit:false });     // gap de grama
+  spaceAfter(94+gw);
 }
 function spaceAfter(w){ railTimer=Math.floor((w+320+Math.random()*200)/Math.max(2,state.speed)); }
 function spawnScooter(){ obstacles.push({type:'scooter', x:state.scroll+W+90, w:50, h:52, hit:false}); spaceAfter(50); }
@@ -414,6 +470,10 @@ function updateObstacles(){
       }
     }else if(o.type==='stairs'){
       if(!o.hit && player.onGround && !player.grinding && wx>o.x+14 && wx<o.x+o.w-14){
+        o.hit=true; o._dead=true; startBail();
+      }
+    }else if(o.type==='grass'){
+      if(!o.hit && player.onGround && !player.grinding && wx>o.x+10 && wx<o.x+o.w-10){
         o.hit=true; o._dead=true; startBail();
       }
     }else if(o.type==='star'){
@@ -448,7 +508,9 @@ function doSpecial(){
     player.vy=SPECIAL_V; state.lowGrav=Math.max(state.lowGrav,80);
     const d=TRICKS['900'];
     player.trick={ name:'900', total:d.total, rot:0, dir:1, kind:'spin' };
-    showCombo('★ SUPER OLLIE — 900! ★'); sfxSpecial(); state.shake=9;
+    if(state.level===4){ player.special900grind=true; showCombo('★ 900 ⟶ GRIND! ★'); }   // especial da Street League
+    else showCombo('★ SUPER OLLIE — 900! ★');
+    sfxSpecial(); state.shake=9;
     for(let i=0;i<10;i++) spawnSwirl();
   }
 }
@@ -471,6 +533,12 @@ function resolveLanding(rail){
     }
     player.didTrick=false;
   }
+  // especial 900 -> grind: ao pousar, desliza (usa o corrimão se houver, senão um powerslide no chão)
+  if(wasAir && player.special900grind){
+    player.special900grind=false;
+    if(!rail){ rail={ x:player.x+state.scroll-20, w:340, y1:GROUND, y2:GROUND, ground:true }; rails.push(rail); }
+    showCombo('900 ⟶ GRIND!');
+  }
   if(rail && !player.grinding) startGrind(rail);
 }
 
@@ -479,6 +547,7 @@ function resolveLanding(rail){
 // ============================================================
 function startBail(){
   bail={ phase:'erase', t:0, dur:40 };
+  player.special900grind=false;
   chainBreak(); showCombo('BAIL! — combo perdido'); state.shake=12; sfxBail();
 }
 function updateBail(){
@@ -503,6 +572,7 @@ function update(){
   if(state.phase==='start'){ fadeScratch(0); if(pressed('Space')) startTurn('play'); clearPressed(); return; }
   if(state.phase==='turn'){ updateTurn(); fadeScratch(0); clearPressed(); return; }
   if(state.paused||state.won||state.over){ fadeScratch(0); clearPressed(); return; }
+  if(state.mode==='fight'){ updateFight(); clearPressed(); return; }
   if(bail){ updateBail(); fadeScratch(0); clearPressed(); return; }
 
   state.speed=Math.min(6.2, state.speed+0.0004);
@@ -638,9 +708,12 @@ function drawRails(){
   const gy=GROUND+player.h/2+6;
   for(const rl of rails){
     const sx=rl.x-state.scroll;
-    sketchLine(sx,rl.y1, sx+rl.w,rl.y2,'#2a2a2a',3);
+    if(rl.ground){ sketchLine(sx,rl.y1+24, sx+rl.w,rl.y2+24,'#888',2); continue; }  // powerslide do 900->grind
+    const wd=rl.giant?4.5:3;
+    sketchLine(sx,rl.y1, sx+rl.w,rl.y2, '#2a2a2a', wd);
     const n=Math.max(2, rl.w/52|0);
     for(let i=0;i<=n;i++){ const t=i/n, lx=sx+rl.w*t, ly=rl.y1+(rl.y2-rl.y1)*t; sketchLine(lx,ly, lx,gy,'#2a2a2a',2); }
+    if(rl.giant){ ctx.save(); ctx.fillStyle='#2a2a2a'; ctx.font='14px "Comic Sans MS",cursive'; ctx.textAlign='center'; ctx.fillText('MEGA RAIL', sx+rl.w/2, rl.y1-8); ctx.restore(); }
   }
 }
 function drawObstacles(){
@@ -650,6 +723,7 @@ function drawObstacles(){
     if(o.type==='scooter') drawScooter(sx,gy,o);
     else if(o.type==='ramp') drawRamp(sx,gy,o);
     else if(o.type==='stairs') drawStairs(sx,gy,o);
+    else if(o.type==='grass') drawGrass(sx,gy,o);
     else if(o.type==='star') drawStar(sx,o);
   }
 }
@@ -701,6 +775,16 @@ function drawStairs(sx,gy,o){
   let x=sx, y=gy;
   for(let i=0;i<n;i++){ sketchLine(x,y,x+sw,y,'#2a2a2a',2.5); x+=sw; sketchLine(x,y,x,y+sh,'#2a2a2a',2.5); y+=sh; }
   sketchLine(x,y,x+10,y,'#2a2a2a',2.5);     // patamar inferior
+}
+function drawGrass(sx,gy,o){
+  // abre o vão e desenha tufos de grama (precisa pular)
+  ctx.fillStyle='#fcfbf3'; ctx.fillRect(sx-2, gy-2, o.w+4, o.h+44);
+  sketchLine(sx,gy+8, sx+o.w,gy+8,'#3a8a3a',2.5);            // terra/base
+  for(let x=sx+3; x<sx+o.w; x+=8){
+    const hh=9+Math.random()*9;
+    sketchLine(x,gy+8, x-3, gy+8-hh,'#3a8a3a',2);
+    sketchLine(x,gy+8, x+3, gy+8-hh*0.8,'#3a8a3a',2);
+  }
 }
 function drawTrail(){
   trail.forEach(p=>{
@@ -879,7 +963,7 @@ function drawStartScreen(){
   sketchLine(W/2-50,260, W/2+50,260,'#2a2a2a',3);
   sketchCircle(W/2-32,270,7,'#2a2a2a',2); sketchCircle(W/2+32,270,7,'#2a2a2a',2);
   ctx.fillStyle='#555'; ctx.font='18px "Comic Sans MS",cursive';
-  ctx.fillText('2 fases · 8 missões · evolua e vire o Mestre do caderno', W/2, 320);
+  ctx.fillText('4 fases · skate + luta · vire campeão da Street League', W/2, 320);
   ctx.fillStyle='#7a6a3a'; ctx.font='20px "Comic Sans MS",cursive';
   ctx.fillText('Recorde: '+best, W/2, 360);
   // pulso no "começar"
@@ -918,21 +1002,98 @@ function drawScene(){
   ctx.restore();
 }
 function drawEnd(won){
-  ctx.save(); ctx.fillStyle='rgba(252,251,243,.93)'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#2a2a2a'; ctx.textAlign='center'; ctx.font='bold 48px "Comic Sans MS",cursive';
-  ctx.fillText(won?'VOCÊ É O MESTRE! 🛹':'GAME OVER', W/2, H/2-50);
-  ctx.font='24px "Comic Sans MS",cursive'; ctx.fillText('Score final: '+totalScore, W/2, H/2);
-  ctx.fillStyle = totalScore>=best ? '#2a7d2a' : '#7a6a3a';
-  ctx.font='20px "Comic Sans MS",cursive';
-  ctx.fillText(totalScore>=best ? '★ NOVO RECORDE! ★' : 'Recorde: '+best, W/2, H/2+34);
-  ctx.fillStyle='#666'; ctx.font='18px "Comic Sans MS",cursive';
-  ctx.fillText('Pressione R para jogar de novo', W/2, H/2+74);
+  ctx.save(); ctx.fillStyle='rgba(252,251,243,.95)'; ctx.fillRect(0,0,W,H); ctx.textAlign='center';
+  if(won){
+    ctx.fillStyle='#2a2a2a'; ctx.font='bold 38px "Comic Sans MS",cursive';
+    ctx.fillText('CAMPEÃO DA STREET LEAGUE! 🏆', W/2, 56);
+    drawChampionScene();
+    ctx.fillStyle='#2a2a2a'; ctx.font='22px "Comic Sans MS",cursive';
+    ctx.fillText('Score final: '+totalScore, W/2, H-66);
+    ctx.fillStyle = totalScore>=best ? '#2a7d2a' : '#7a6a3a'; ctx.font='18px "Comic Sans MS",cursive';
+    ctx.fillText(totalScore>=best ? '★ NOVO RECORDE! ★' : 'Recorde: '+best, W/2, H-42);
+    ctx.fillStyle='#666'; ctx.font='16px "Comic Sans MS",cursive';
+    ctx.fillText('Pressione R para jogar de novo', W/2, H-20);
+  }else{
+    ctx.fillStyle='#2a2a2a'; ctx.font='bold 46px "Comic Sans MS",cursive';
+    ctx.fillText('GAME OVER', W/2, H/2-50);
+    ctx.font='24px "Comic Sans MS",cursive'; ctx.fillText('Score final: '+totalScore, W/2, H/2);
+    ctx.fillStyle = totalScore>=best ? '#2a7d2a' : '#7a6a3a'; ctx.font='20px "Comic Sans MS",cursive';
+    ctx.fillText(totalScore>=best ? '★ NOVO RECORDE! ★' : 'Recorde: '+best, W/2, H/2+34);
+    ctx.fillStyle='#666'; ctx.font='18px "Comic Sans MS",cursive';
+    ctx.fillText('Pressione R para jogar de novo', W/2, H/2+74);
+  }
   ctx.restore();
+}
+function drawChampionScene(){
+  const ground=350;
+  // confete
+  const cc=['#c0392b','#2a7d2a','#d4a017','#7a5cc0','#e07b39'];
+  for(let i=0;i<28;i++){ const x=90+((i*97)%(W-180)), y=86+((i*53)%210);
+    ctx.strokeStyle=cc[i%cc.length]; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+4,y+6); ctx.stroke(); }
+  // chão + pódio
+  sketchLine(110,ground, W-110,ground,'#2a2a2a',3);
+  sketchRect(W/2-58, ground-36, 116, 36, '#2a2a2a',3);
+  ctx.fillStyle='#2a2a2a'; ctx.font='20px "Comic Sans MS",cursive'; ctx.textAlign='center'; ctx.fillText('1', W/2, ground-12);
+  // campeão no pódio (braços pra cima)
+  drawChampion(W/2, ground-36);
+  // meninas torcendo + troféu
+  drawGirl(W/2-160, ground, true);    // segura o troféu
+  drawGirl(W/2+150, ground, false);   // comemorando
+}
+function drawChampion(x, footY){
+  const col='#2a2a2a', hipY=footY-26, shoY=footY-52, headY=footY-64;
+  sketchLine(x,hipY,x,shoY,col,3);
+  sketchLine(x,hipY,x-9,footY,col,3); sketchLine(x,hipY,x+9,footY,col,3);
+  sketchLine(x,shoY+6,x-17,shoY-16,col,2.5); sketchLine(x,shoY+6,x+17,shoY-16,col,2.5);  // braços erguidos
+  sketchCircle(x,headY,9,col,3);
+  ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,headY-3,9,Math.PI,Math.PI*2); ctx.stroke();
+  sketchLine(x-9,headY-3,x+9,headY-3,col,3); sketchCircle(x,headY-14,2.4,col,2);          // touca
+  sketchRect(x-7,headY-2,14,4,col,2);                                                      // óculos
+  drawSkateAt(x, footY, col);
+}
+function drawGirl(x, ground, holdsTrophy){
+  const col='#2a2a2a', headY=ground-70, shoY=ground-58;
+  // cabelo longo + cabeça
+  sketchCircle(x,headY,9,col,2.5);
+  sketchLine(x-9,headY-1,x-12,ground-44,col,2); sketchLine(x+9,headY-1,x+12,ground-44,col,2);
+  // vestido
+  sketchLine(x,shoY,x-17,ground,col,2.5); sketchLine(x,shoY,x+17,ground,col,2.5); sketchLine(x-17,ground,x+17,ground,col,2.5);
+  if(holdsTrophy){
+    // braços segurando o troféu à frente
+    sketchLine(x,shoY+4, x+22,shoY+6,col,2.5); sketchLine(x,shoY+8, x+22,shoY+12,col,2.5);
+    drawTrophy(x+40, ground-2, true);
+  }else{
+    // braços erguidos comemorando
+    sketchLine(x,shoY+4, x-15,shoY-14,col,2.5); sketchLine(x,shoY+4, x+15,shoY-14,col,2.5);
+    ctx.fillStyle='#c0392b'; ctx.font='18px "Comic Sans MS",cursive'; ctx.textAlign='center'; ctx.fillText('♥', x, headY-16);
+  }
+}
+function drawTrophy(x, baseY, big){
+  const col='#d4a017', s=big?1:0.7;
+  const bw=28*s, ch=40*s, cw=34*s;
+  sketchRect(x-bw/2, baseY-10*s, bw, 10*s, col,3);            // base
+  sketchLine(x-7*s,baseY-10*s, x-7*s,baseY-26*s, col,3); sketchLine(x+7*s,baseY-10*s, x+7*s,baseY-26*s, col,3); // haste
+  // taça (trapézio)
+  const top=baseY-26*s-ch;
+  sketchLine(x-7*s,baseY-26*s, x-cw/2,top, col,3);
+  sketchLine(x+7*s,baseY-26*s, x+cw/2,top, col,3);
+  sketchLine(x-cw/2,top, x+cw/2,top, col,3);
+  // alças
+  ctx.strokeStyle=col; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(x-cw/2, top+12*s, 9*s, Math.PI*0.5, Math.PI*1.5, true); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+cw/2, top+12*s, 9*s, Math.PI*1.5, Math.PI*0.5, true); ctx.stroke();
+  ctx.fillStyle=col; ctx.font=(14*s|0)+'px "Comic Sans MS",cursive'; ctx.textAlign='center'; ctx.fillText('★', x, top+ch*0.55);
 }
 function drawPause(){
   ctx.save(); ctx.fillStyle='rgba(252,251,243,.92)'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#2a2a2a'; ctx.textAlign='center'; ctx.font='bold 40px "Comic Sans MS",cursive';
   ctx.fillText('— Pausa —', W/2, 70);
+  if(state.mode==='fight'){
+    ctx.font='20px "Comic Sans MS",cursive'; ctx.fillStyle='#555';
+    ctx.fillText('Modo Luta — vença o Bad Boy!', W/2, 140);
+    ctx.fillStyle='#888'; ctx.font='15px "Comic Sans MS",cursive';
+    ctx.fillText('P para voltar', W/2, H-30); ctx.restore(); return;
+  }
   ctx.textAlign='left'; ctx.font='20px "Comic Sans MS",cursive';
   missions.forEach((mm,i)=>{
     const y=140+i*70;
@@ -948,13 +1109,208 @@ function drawPause(){
 }
 
 function draw(){
-  drawScene();
-  if(state.phase==='start'){ drawStartScreen(); return; }
-  drawHUD();
+  if(state.mode==='fight'){
+    drawFightScene(); drawFightHUD();
+  }else{
+    drawScene();
+    if(state.phase==='start'){ drawStartScreen(); return; }
+    drawHUD();
+  }
   if(state.phase==='turn'){ drawPageTurn(); return; }
   if(state.paused) drawPause();
   if(state.won) drawEnd(true);
   if(state.over) drawEnd(false);
+}
+
+// ============================================================
+//  FASE 3 — MODO LUTA (vs Bad Boy)
+// ============================================================
+const ARENA_L=140, ARENA_R=820;
+function enterFight(){ state.level=3; state.mode='fight'; initFight(); startTurn('play'); }
+function initFight(){
+  fight={
+    you: makeFighter(320, 1, true),
+    foe: makeFighter(650, -1, false),
+    intro:120, result:null, outro:0,
+    msg:'PIQUE FAMOSO NA CIDADE...', msgT:120
+  };
+}
+function makeFighter(x,facing,isPlayer){
+  return { x, vx:0, hp:100, maxhp:100, facing, isPlayer, st:'idle', atk:null, cd:0, hitFlash:0, stun:0, blocking:false, aiTimer:30 };
+}
+function updateFight(){
+  const y=fight.you, f=fight.foe;
+  if(state.shake>0) state.shake*=0.85;
+  if(fight.msgT>0) fight.msgT--;
+  fadeScratch(0);
+
+  if(fight.result){
+    fight.outro--;
+    if(fight.outro<=0){ if(fight.result==='win') enterPhase4(); else state.over=true; }
+    return;
+  }
+  if(fight.intro>0){
+    fight.intro--;
+    if(fight.intro===62){ fight.msg='⚡ UM PLAYBOY TE ENCAROU! ⚡'; fight.msgT=62; }
+    if(fight.intro===0){ fight.msg='LUTA!'; fight.msgT=50; }
+    return;
+  }
+  controlPlayer(y,f); aiFighter(f,y);
+  stepFighter(y,f); stepFighter(f,y);
+
+  if(f.hp<=0){ fight.result='win'; fight.outro=160; fight.msg='K.O.! VOCÊ VENCEU!'; fight.msgT=160; sfxMission(); state.shake=10; }
+  else if(y.hp<=0){ fight.result='lose'; fight.outro=160; fight.msg='VOCÊ APANHOU...'; fight.msgT=160; sfxBail(); }
+}
+function controlPlayer(y,f){
+  y.facing=(f.x>=y.x)?1:-1;
+  y.blocking = !!keys['ArrowDown'] && !y.atk && y.stun<=0;
+  y.vx=0;
+  if(!y.atk && !y.blocking && y.stun<=0){
+    if(keys['ArrowLeft']) y.vx-=3;
+    if(keys['ArrowRight']) y.vx+=3;
+    if(y.cd<=0){
+      if(pressed('KeyA')) startAttack(y,'kick');
+      else if(pressed('KeyB')) startAttack(y,'punch');
+    }
+  }
+}
+function aiFighter(f,y){
+  f.facing=(y.x>=f.x)?1:-1; f.vx=0; f.blocking=false;
+  if(f.atk||f.stun>0) return;
+  const dist=Math.abs(f.x-y.x); f.aiTimer--;
+  if(dist>92){ f.vx=(y.x>f.x?1:-1)*2.4; }
+  else if(dist<52){ f.vx=(y.x>f.x?-1:1)*1.8; }
+  else if(f.cd<=0 && f.aiTimer<=0){
+    const r=Math.random();
+    if(r<0.18){ f.blocking=true; f.aiTimer=24+Math.random()*28; }
+    else { startAttack(f, r<0.62?'kick':'punch'); f.aiTimer=36+Math.random()*40; }
+  }
+}
+function startAttack(fr,type){
+  const def = type==='kick'
+    ? {dur:26,hitA:9,hitB:16,range:84,dmg:11,kb:6}
+    : {dur:18,hitA:5,hitB:10,range:58,dmg:7,kb:3};
+  fr.atk=Object.assign({type,t:0,landed:false},def); fr.st=type;
+  if(fr.isPlayer){ if(type==='kick') sfxWhoosh(); else sfxOllie(); }
+}
+function stepFighter(fr,opp){
+  if(fr.hitFlash>0) fr.hitFlash--;
+  if(fr.stun>0) fr.stun--;
+  fr.x=Math.max(ARENA_L,Math.min(ARENA_R, fr.x+fr.vx));
+  if(fr.atk){
+    const a=fr.atk; a.t++;
+    if(!a.landed && a.t>=a.hitA && a.t<=a.hitB){
+      const dist=Math.abs(fr.x-opp.x), inFront=(opp.x-fr.x)*fr.facing>=-10;
+      if(dist<=a.range && inFront){ a.landed=true; applyHit(opp, a.dmg, a.kb*fr.facing); }
+    }
+    if(a.t>=a.dur){ fr.cd=(a.type==='kick'?16:10); fr.atk=null; fr.st='idle'; }
+  }else{
+    if(fr.cd>0) fr.cd--;   // recarrega o golpe (vale p/ jogador e IA)
+    fr.st = fr.stun>0?'hit' : (fr.blocking?'block' : (Math.abs(fr.vx)>0.1?'walk':'idle'));
+  }
+}
+function applyHit(opp,dmg,kb){
+  if(opp.blocking){ dmg*=0.25; kb*=0.4; opp.hitFlash=6; sfxHit(true); }
+  else { opp.stun=14; opp.hitFlash=12; sfxHit(false); }
+  opp.hp=Math.max(0, opp.hp-dmg);
+  opp.x=Math.max(ARENA_L,Math.min(ARENA_R, opp.x+kb));
+  state.shake=Math.max(state.shake, opp.blocking?3:7);
+}
+
+function drawFightScene(){
+  ctx.save();
+  if(state.shake>0.5) ctx.translate(jitter()*state.shake, jitter()*state.shake);
+  drawPaper(); drawCityBackdrop();
+  const gy=GROUND+player.h/2+6;
+  sketchLine(0,gy,W,gy,'#2a2a2a',3);
+  for(let x=0;x<W;x+=70) sketchLine(x,gy+16,x+26,gy+16,'#6a6a6a',2);
+  if(fight){ drawFighter(fight.foe); drawFighter(fight.you); }
+  ctx.restore();
+}
+function drawCityBackdrop(){
+  ctx.save(); ctx.globalAlpha=0.45;
+  const base=GROUND+player.h/2+6, hs=[120,80,150,100,175,90,135,110,165];
+  let x=10;
+  for(let i=0;i<hs.length;i++){ const w=78+(i%3)*20, h=hs[i];
+    sketchRect(x, base-h, w, h, '#9aa3b0', 2);
+    for(let wy=base-h+16; wy<base-14; wy+=22) for(let wx=x+10; wx<x+w-8; wx+=20) sketchRect(wx,wy,8,10,'#9aa3b0',1);
+    x+=w+22; }
+  ctx.restore();
+}
+function drawFighter(f){
+  const gy=GROUND+player.h/2+6;
+  ctx.save(); ctx.translate(f.x, gy); ctx.scale(f.facing,1);
+  if(f.hitFlash>0 && Math.floor(f.hitFlash/2)%2===0) ctx.globalAlpha=0.45;
+  const col='#2a2a2a', hipY=-28, shoY=-56, headY=-67;
+  const lean = f.st==='hit' ? -7 : (f.st==='block'? -2 : 0);
+  sketchLine(0,hipY, lean*0.35, shoY, col,3);                 // tronco
+  drawFightHead(f, lean, headY, col);
+  // braços
+  if(f.st==='punch' && f.atk){
+    const e=Math.min(1,f.atk.t/f.atk.hitB);
+    sketchLine(lean*0.35,shoY+6, 30*e+10, shoY+10, col,2.5);
+    sketchCircle(30*e+12, shoY+10, 3, col,2);
+    sketchLine(lean*0.35,shoY+6, -10, hipY-6, col,2.5);
+  }else if(f.st==='block'){
+    sketchLine(lean*0.35,shoY+6, 14, shoY-2, col,2.5);
+    sketchLine(lean*0.35,shoY+6, 16, shoY+12, col,2.5);
+  }else{
+    sketchLine(lean*0.35,shoY+8, 12, hipY-4, col,2.5);
+    sketchLine(lean*0.35,shoY+8, -10, hipY-6, col,2.5);
+  }
+  // pernas + chute com skate
+  if(f.st==='kick' && f.atk){
+    const e=Math.min(1,f.atk.t/f.atk.hitB);
+    sketchLine(0,hipY, -10, 0, col,3);
+    const kx=24+54*e, ky=hipY+8-6*e;
+    sketchLine(0,hipY, kx, ky, col,3);
+    drawSkateAt(kx,ky,col);
+  }else{
+    sketchLine(0,hipY,-9,0,col,3); sketchLine(0,hipY,9,0,col,3);
+    drawSkateAt(3,2,col);
+  }
+  ctx.restore();
+}
+function drawFightHead(f, lean, headY, col){
+  const cx=lean*0.45;
+  sketchCircle(cx,headY,9,col,3);
+  if(f.isPlayer){
+    ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(cx,headY-3,9,Math.PI,Math.PI*2); ctx.stroke();
+    sketchLine(cx-9,headY-3,cx+9,headY-3,col,3);              // touca
+    sketchCircle(cx,headY-14,2.4,col,2);                      // pompom
+    sketchRect(cx+1,headY-2,7,4,col,2);                       // óculos
+  }else{
+    sketchLine(cx-7,headY-7,cx-9,headY-16,col,2);             // cabelo espetado
+    sketchLine(cx-2,headY-9,cx-2,headY-18,col,2);
+    sketchLine(cx+4,headY-8,cx+7,headY-16,col,2);
+    sketchLine(cx+2,headY-3,cx+9,headY-5,col,2.5);            // sobrancelha brava
+  }
+}
+function drawSkateAt(x,y,col){ sketchLine(x-11,y,x+11,y,col,2.5); sketchCircle(x-7,y+4,2.4,col,1.5); sketchCircle(x+7,y+4,2.4,col,1.5); }
+
+function drawFightHUD(){
+  if(!fight) return;
+  drawHpBar(40, 40, fight.you.hp/fight.you.maxhp, 'VOCÊ', false);
+  drawHpBar(W-40-240, 40, fight.foe.hp/fight.foe.maxhp, 'BAD BOY', true);
+  ctx.save(); ctx.textAlign='center';
+  if(fight.msgT>0 && fight.msg){
+    ctx.globalAlpha=Math.min(1,fight.msgT/30);
+    ctx.fillStyle='#2a2a2a'; ctx.font='bold 34px "Comic Sans MS",cursive';
+    ctx.fillText(fight.msg, W/2, 120); ctx.globalAlpha=1;
+  }
+  ctx.fillStyle='#777'; ctx.font='14px "Comic Sans MS",cursive';
+  ctx.fillText('← → mover  ·  A chute  ·  B soco  ·  ↓ defender', W/2, H-22);
+  ctx.restore();
+}
+function drawHpBar(x,y,frac,label,right){
+  const w=240,h=16; frac=Math.max(0,frac);
+  ctx.save(); ctx.textAlign=right?'right':'left';
+  ctx.fillStyle='#2a2a2a'; ctx.font='15px "Comic Sans MS",cursive';
+  ctx.fillText(label, right?x+w:x, y-6);
+  sketchRect(x,y,w,h,'#2a2a2a',2);
+  ctx.fillStyle = frac>0.3? '#2a7d2a' : '#c0392b';
+  ctx.fillRect(right? x+2+(w-4)*(1-frac) : x+2, y+2, (w-4)*frac, h-4);
+  ctx.restore();
 }
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }

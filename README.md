@@ -42,7 +42,11 @@ Abra [`index.html`](index.html) no navegador (ou jogue online no link acima) e a
 - **Obstáculos** — patinete (desvie pulando), rampa/quarter-pipe (arremessa alto), escadaria (pule o vão).
 - **Estrela ✨** — reduz a gravidade por 5s, permitindo sequências enormes de manobras.
 - **Barra de especial** (2 níveis) — 2000 pts solta o **900** (super ollie); 4000 pts solta o **1080 + Kickflip**.
-- **2 fases / 8 missões** — na Fase 2 a skin do personagem evolui (óculos, touca, calça, tattoos).
+- **4 fases**:
+  1. **A Base** — tutorial de ollies, giros e combos.
+  2. **A Cidade** — missões mais duras; em certo ponto a skin evolui (óculos, touca, calça, tattoos).
+  3. **Modo Luta** ⚔️ — você vira Mestre e cai na porrada contra um playboy *bad boy*; lutam com chutes e socos usando os skates (← → mover · `A` chute · `B` soco · `↓` defender).
+  4. **Street League** 🏆 — vira profissional e disputa a liga; complete as missões e vire **campeão**.
 
 ## VFX (estilo caderno)
 
