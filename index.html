@@ -33,7 +33,7 @@
     <kbd>Espaço</kbd> Ollie (segure p/ subir) · <kbd>↓</kbd> Manual · pule em trilhos p/ <b>Grind</b> (segure <kbd>↑</kbd> = Crooked)<br>
     Desvie do <b>patinete</b> · <b>rampa</b> 🚀 p/ voar · pule a <b>escadaria</b> · pegue a <b>estrela</b> ✨ (gravidade baixa)<br>
     No ar: <kbd>→</kbd>+<kbd>A</kbd> Kickflip · <kbd>→</kbd>+<kbd>B</kbd> 180 · <kbd>↑</kbd>+<kbd>B</kbd> 360 ·
-    <kbd>↑</kbd>+<kbd>A</kbd> 540 · <kbd>←</kbd>+<kbd>A</kbd> Shuv · <kbd>↓</kbd>+<kbd>B</kbd> Bigspin ·
+    <kbd>↑</kbd>+<kbd>A</kbd> 540 · <kbd>←</kbd>+<kbd>A</kbd> Shuv · <kbd>↓</kbd>+<kbd>B</kbd> Bigspin · <kbd>→</kbd>+<kbd>K</kbd> Impossible · <kbd>B</kbd> (no ar) Indy Grab · <kbd>B</kbd> (no grind) Board Slide ·
     <kbd>S</kbd> Especial 900 · <kbd>M</kbd> som · <kbd>P</kbd> pause · <kbd>R</kbd> reset
   </div>
 </div>
@@ -102,6 +102,8 @@ function sfxMission(){ tone(659,0,0.16); tone(880,0.12,0.28,0.2); }
 function sfxStar(){ tone(784,0,0.12,0.2); tone(988,0.08,0.12,0.2); tone(1319,0.16,0.26,0.2); }
 function sfxSpecial(){ tone(523,0,0.1,0.22); tone(659,0.08,0.1,0.22); tone(784,0.16,0.1,0.22); tone(1047,0.24,0.32,0.24); noiseBurst(0.3,2200,0.2,'highpass'); }
 function sfxHit(block){ noiseBurst(block?0.08:0.15, block?900:360, block?0.18:0.36, 'lowpass'); if(!block) tone(130,0,0.1,0.16,'square'); }
+function sfxClick(){ tone(1300,0,0.05,0.2,'square'); tone(1750,0.04,0.07,0.16,'triangle'); }   // "encaixe perfeito"
+function sfxGrab(){ noiseBurst(0.05,3000,0.24,'highpass'); tone(820,0,0.04,0.16,'square'); }   // mão tocando a madeira (click seco)
 function sfxPage(){ noiseBurst(0.34,1600,0.2,'highpass'); }
 
 // ============================================================
@@ -110,7 +112,7 @@ function sfxPage(){ noiseBurst(0.34,1600,0.2,'highpass'); }
 const keys = {};
 addEventListener('keydown', e=>{
   initAudio();
-  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyA','KeyB','KeyS','KeyP','KeyR','KeyM'].includes(e.code)) e.preventDefault();
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyA','KeyB','KeyK','KeyS','KeyP','KeyR','KeyM'].includes(e.code)) e.preventDefault();
   if(!keys[e.code]) keys['_p_'+e.code]=true;
   keys[e.code]=true;
   if(e.code==='KeyR') reset();
@@ -121,26 +123,21 @@ addEventListener('keydown', e=>{
 
 // ===== macetes secretos (digite a palavra) =====
 let codeBuf='';
+// macetes: palavras SEM as letras r (reset) e m (mute), p/ não conflitar com os atalhos
 function checkCheat(e){
   if(!e.key || e.key.length!==1) return;
   codeBuf=(codeBuf+e.key.toLowerCase()).slice(-12);
-  if(codeBuf.endsWith('tony')){                 // evolui/reverte a skin
-    player.upgraded=!player.upgraded;
-    showCombo(player.upgraded?'🔓 EVOLUÍDO! (macete)':'↩ skin normal'); sfxStar();
-  }
-  if(codeBuf.endsWith('turbo')){                // enche a barra de especial
-    state.special=SPECIAL_MAX2; showCombo('🔓 especial no máximo!'); sfxSpecial();
-  }
-  if(codeBuf.endsWith('fase2') && state.level===1){  // pula pra Fase 2
-    state.level=2; missions=buildMissions2(); curMission=0;
-    state.speed=Math.max(state.speed,4.4); showCombo('🔓 Fase 2 desbloqueada!'); sfxMission();
-  }
-  if(codeBuf.endsWith('luta') && state.mode!=='fight'){   // pula pra Fase 3 (luta)
-    player.upgraded=true; state.level=2; enterFight();
-  }
-  if(codeBuf.endsWith('liga') && state.mode!=='fight'){    // pula pra Fase 4 (street league)
-    player.upgraded=true; enterPhase4();
-  }
+  const has = w => codeBuf.endsWith(w);
+  if(has('tony')){ player.upgraded=!player.upgraded; showCombo(player.upgraded?'🔓 EVOLUÍDO!':'↩ skin normal'); sfxStar(); }
+  if(has('cheio')){ state.special=SPECIAL_MAX2; showCombo('🔓 especial cheio!'); sfxSpecial(); }       // enche o especial
+  if(has('fase2') && state.level===1){ state.level=2; missions=buildMissions2(); curMission=0; state.speed=Math.max(state.speed,4.4); showCombo('🔓 Fase 2!'); sfxMission(); }
+  if(has('luta')){ player.upgraded=true; state.level=2; enterFight(); }        // Fase 3 (luta)
+  if(has('liga')){ player.upgraded=true; enterPhase4(); }                       // Fase 4 (street league)
+  if(has('velho')){ player.upgraded=true; startRankRun(5); }                    // Era da Lenda — Master
+  if(has('sabio')){ player.upgraded=true; startRankRun(6); }                    // Grand Master
+  if(has('lenda')){ player.upgraded=true; enterEra(7); }                        // boss + Legend
+  if(has('zona')){ enterFree(); }                                               // skate park livre
+  if(has('duelo')){ startSkateGame('CPU',0.5,'free'); }                         // game of S.K.A.T.E.
 }
 addEventListener('keyup', e=> keys[e.code]=false);
 function pressed(code){ return keys['_p_'+code]; }
@@ -149,7 +146,9 @@ function clearPressed(){ for(const k in keys) if(k.startsWith('_p_')) keys[k]=fa
 // ============================================================
 //  Sketch helpers
 // ============================================================
-function jitter(){ return (Math.random()*2-1)*0.9; }
+let inkJ=0.9;                       // amplitude do "tremor" do traço (maior na Era da Lenda)
+function jitter(){ return (Math.random()*2-1)*inkJ; }
+function aged(){ return state.level>=5; }   // Era da Lenda = estética envelhecida + skate velho
 function sketchLine(x1,y1,x2,y2,col='#2a2a2a',wd=2){
   ctx.strokeStyle=col; ctx.lineWidth=wd; ctx.lineCap='round';
   for(let p=0;p<2;p++){
@@ -196,9 +195,11 @@ const player = {
   onGround:true, holdJump:false,
   bodyAngle:0, capAngle:0, manualTilt:0,
   boardAngle:0, boardFlip:0, boardPop:0,   // rotação + "pop" vertical SÓ do skate
-  trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false
+  trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false,
+  coyote:0, jumpBuf:0, veteran:false, freestyle:null, grab:false, boardslide:false, lastTrick:null
 };
-let state, trail, swirls, dust, comboMsg, scorePop, rails, obstacles, railTimer, bail, pageTurn, fight;
+function canFreestyle(){ return state.level>=5 || state.freeRun; }   // No Comply / Boneless: Era da Lenda + Skate Park
+let state, trail, swirls, dust, comboMsg, scorePop, rails, obstacles, railTimer, bail, pageTurn, fight, sk;
 let missions, curMission, totalScore, chain;
 
 const TRICKS = {
@@ -210,6 +211,8 @@ const TRICKS = {
   '540':      { total:Math.PI*3,  label:'540',      pts:550, dir: 1, kind:'spin',    spd:0.18 },
   '900':      { total:Math.PI*5,  label:'900!',     pts:1000,dir: 1, kind:'spin',    spd:0.30 },
   '1080flip': { total:Math.PI*6,  label:'1080 KICKFLIP!', pts:2000, dir:1, kind:'spinflip', spd:0.32 },
+  'treflip':  { total:Math.PI*2,  label:'360 KICKFLIP', pts:480, dir:1, kind:'treflip', spd:0.23 },  // 360 shuv + kickflip
+  'impossible':{ total:Math.PI*2, label:'IMPOSSIBLE', pts:300, dir:1, kind:'impossible', spd:0.24 }, // shape enrola (antigo visual do kickflip)
 };
 
 function buildMissions(){
@@ -238,14 +241,14 @@ function buildMissions2(){
 }
 
 function reset(){
-  state={ phase:'start', paused:false, won:false, over:false, scroll:0, speed:3.4, shake:0, lowGrav:0, special:0, level:1, mode:'skate', scoreBase:0 };
-  fight=null;
+  state={ phase:'start', paused:false, won:false, over:false, scroll:0, speed:3.4, shake:0, lowGrav:0, special:0, level:1, mode:'skate', scoreBase:0, menu:0, freeRun:false };
+  fight=null; sk=null;
   Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
-    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false });
+    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false, coyote:0, jumpBuf:0, veteran:false, freestyle:null });
   trail=[]; swirls=[]; dust=[]; comboMsg=null; scorePop=[];
   rails=[]; obstacles=[]; railTimer=120; bail=null; pageTurn=null;
   missions=buildMissions(); curMission=0; totalScore=0;
-  chain={ items:[], active:false, grace:0 };
+  chain={ items:[], active:false, grace:0, flow:0 };
 }
 reset();
 
@@ -262,21 +265,24 @@ function updateTurn(){
 //  Combo encadeado
 // ============================================================
 function chainAdd(label,pts){ chain.active=true; chain.items.push({label,pts}); chain.grace=0; }
+function chainAddFlow(label,pts){ chainAdd(label,pts); chain.flow=(chain.flow||0)+1; }   // manobra de FLOW (solo/old-school)
 function chainTick(pts){ if(chain.items.length) chain.items[chain.items.length-1].pts+=pts; }
 function chainBank(){
   if(chain.items.length){
     const mult=chain.items.length;
+    const flow=chain.flow||0;
+    const flowMult=1 + flow*0.2;                                  // Flow Score: emendar manobras de solo multiplica
     const base=chain.items.reduce((s,i)=>s+i.pts,0);
-    const total=Math.round(base*mult);
+    const total=Math.round(base*mult*flowMult);
     totalScore+=total; saveBest();
     state.special=Math.min(SPECIAL_MAX2, state.special+total);   // boas manobras enchem o especial
-    showCombo(chain.items.map(i=>i.label).join('  +  ') + (mult>1?'   x'+mult:'') + '  =  '+total);
+    showCombo(chain.items.map(i=>i.label).join('  +  ') + (mult>1?'   x'+mult:'') + (flow?'  · FLOW x'+flow:'') + '  =  '+total);
     popScore('+'+total,'trick'); sfxBank(mult);
-    hitMissionMult(mult); hitScore();
+    hitMissionMult(mult); hitScore(); hitMissionFlow(flow);
   }
-  chain={ items:[], active:false, grace:0 };
+  chain={ items:[], active:false, grace:0, flow:0 };
 }
-function chainBreak(){ chain={ items:[], active:false, grace:0 }; }
+function chainBreak(){ chain={ items:[], active:false, grace:0, flow:0 }; }
 
 // ============================================================
 //  Missões
@@ -290,9 +296,13 @@ function hitMissionMult(mult){
   const m=missions[curMission]; if(!m||m.done||m.type!=='mult') return;
   if(mult>=m.target){ m.prog=m.need; m.done=true; nextMission(); }
 }
+function hitMissionFlow(flow){
+  const m=missions[curMission]; if(!m||m.done||m.type!=='flow') return;
+  if(flow>=m.target){ m.prog=m.need; m.done=true; nextMission(); }
+}
 function advanceMission(name){
-  if(['180','shuv','360','kickflip','bigspin','540','900','1080flip'].includes(name)) hitMission('spin180',1);
-  if(['360','kickflip','bigspin','540','900','1080flip'].includes(name)) hitMission('spin360',1);
+  if(['180','shuv','360','kickflip','bigspin','540','900','1080flip','treflip','impossible'].includes(name)) hitMission('spin180',1);
+  if(['360','kickflip','bigspin','540','900','1080flip','treflip'].includes(name)) hitMission('spin360',1);
   if(['900','1080flip'].includes(name)) hitMission('special',1);
 }
 function landOllie(){
@@ -309,6 +319,30 @@ function buildMissions4(){
       hint:'encha a barra e mande o 1080', need:1, prog:0, done:false, type:'special' },
   ];
 }
+// ERA DA LENDA (E1): ranks Master/Grand Master/Legend
+function buildMissionsRank(lv){
+  if(lv===5) return [
+    { title:'Master — Aquecimento', task:'Marque 4000 pts no pico', hint:'mande combos no bowl', need:1, prog:0, done:false, type:'score', target:4000 },
+    { title:'Master — Old School', task:'Mande 3 manobras de solo', hint:'A = No Comply · B = Boneless (no chão)', need:3, prog:0, done:false, type:'freestyle' },
+    { title:'Master — Flow', task:'Feche uma linha com FLOW x3', hint:'emende grind + manual + no comply/boneless', need:1, prog:0, done:false, type:'flow', target:3 },
+  ];
+  if(lv===6) return [
+    { title:'Grand Master — Pesado', task:'Marque 6000 pts', hint:'mega ramp = ar pra caramba', need:1, prog:0, done:false, type:'score', target:6000 },
+    { title:'Grand Master — Insano', task:'Combo de 10 elementos', hint:'estrela + mega ramp', need:1, prog:0, done:false, type:'mult', target:10 },
+    { title:'Grand Master — Especialista', task:'Solte 2 especiais (S)', hint:'encha a barra 2x', need:2, prog:0, done:false, type:'special' },
+  ];
+  return [
+    { title:'Legend — Imortal', task:'Marque 9000 pts', hint:'a linha lendária', need:1, prog:0, done:false, type:'score', target:9000 },
+    { title:'Legend — Sobrenatural', task:'Combo de 12 elementos', hint:'tudo junto, sem cair', need:1, prog:0, done:false, type:'mult', target:12 },
+    { title:'Legend — A Lenda', task:'Solte 3 especiais (S)', hint:'1080 e 900→grind', need:3, prog:0, done:false, type:'special' },
+  ];
+}
+function resetSkateRun(){
+  Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
+    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0,
+    trick:null, manual:false, grinding:null, crooked:false, didTrick:false, coyote:0, jumpBuf:0, special900grind:false, freestyle:null, grab:false, boardslide:false });
+  trail=[]; swirls=[]; dust=[]; rails=[]; obstacles=[]; railTimer=120; bail=null;
+}
 function nextMission(){
   const done=missions[curMission];
   sfxMission(); saveBest();
@@ -320,18 +354,40 @@ function nextMission(){
   if(curMission < missions.length-1){ curMission++; startTurn('play'); }
   else if(state.level===1){ state.level=2; missions=buildMissions2(); curMission=0; state.speed=Math.max(state.speed,4.4); startTurn('play'); }
   else if(state.level===2){ enterFight(); }                 // virou Mestre -> MODO LUTA (fase 3)
-  else if(state.level===4){ state.won=true; }               // campeão da Street League
-  else { state.won=true; }
+  else if(state.level===4){ enterEra(5); }                  // campeão -> Era da Lenda (Master)
+  else if(state.level===5){ enterEra(6); }
+  else if(state.level===6){ enterEra(7); }
+  else { state.won=true; }                                   // Legend concluída -> LENDA DO SKATE
 }
 function enterPhase4(){
   state.level=4; state.mode='skate'; fight=null;
-  state.scoreBase=totalScore;
-  Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
-    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0,
-    trick:null, manual:false, grinding:null, crooked:false, didTrick:false });
-  trail=[]; swirls=[]; dust=[]; rails=[]; obstacles=[]; railTimer=120; bail=null;
+  state.scoreBase=totalScore; resetSkateRun();
   missions=buildMissions4(); curMission=0; state.speed=Math.max(state.speed,5.0);
   showCombo('🏆 PROFISSIONAL! Street League começou'); startTurn('play');
+}
+function startCampaign(){
+  state.level=1; state.mode='skate'; state.freeRun=false; fight=null; sk=null;
+  player.upgraded=false; player.veteran=false;
+  state.speed=3.4; resetSkateRun();
+  missions=buildMissions(); curMission=0; startTurn('play');
+}
+function enterFree(){   // E7: skate park livre, sem missões
+  state.level=1; state.mode='skate'; state.freeRun=true; fight=null; sk=null;
+  state.speed=3.8; resetSkateRun();
+  missions=[]; curMission=0; showCombo('🛹 SKATE PARK — modo livre'); startTurn('play');
+}
+function enterEra(lv){
+  state.level=lv; fight=null; player.veteran=true;
+  if(lv===7){ startSkateGame('BAD BOY', 0.62, 'boss'); return; }   // E6: boss de S.K.A.T.E. antes da Lenda
+  startRankRun(lv);
+}
+function startRankRun(lv){
+  state.level=lv; state.mode='skate'; fight=null; sk=null; player.veteran=true;
+  state.scoreBase=totalScore; resetSkateRun();
+  missions=buildMissionsRank(lv); curMission=0;
+  state.speed=Math.max(state.speed, lv===5?5.2:lv===6?5.6:6.2);
+  const names={5:'MASTER',6:'GRAND MASTER',7:'LENDA'};
+  showCombo('🏅 ERA DA LENDA — '+names[lv]+'!'); startTurn('play');
 }
 function hitScore(){
   const m=missions[curMission]; if(!m||m.done||m.type!=='score') return;
@@ -355,6 +411,9 @@ function spawnDust(){
 function spawnSpark(){
   dust.push({ x:player.x-14, y:player.y+8, vx:-3-Math.random()*2.5, vy:-Math.random()*2, life:20, max:20, col:'#999' });
 }
+function spawnSlideSpark(){   // board slide: faíscas curtas espalhando lateralmente
+  dust.push({ x:player.x+(Math.random()*30-15), y:player.y+8, vx:(Math.random()*2-1)*4.5, vy:-Math.random()*1.2, life:16, max:16, col:'#999' });
+}
 
 // ============================================================
 //  Tricks no ar
@@ -362,7 +421,10 @@ function spawnSpark(){
 function tryTrick(){
   if(player.trick) return;
   let t=null;
-  if      (keys['ArrowUp']    && keys['KeyA']) t='540';
+  const treOk = (state.level>=4 || state.freeRun);   // 360 Kickflip: a partir da Street League
+  if      (keys['ArrowLeft']  && keys['KeyK'] && treOk) t='treflip';
+  else if (keys['ArrowRight'] && keys['KeyK']) t='impossible';
+  else if (keys['ArrowUp']    && keys['KeyA']) t='540';
   else if (keys['ArrowUp']    && keys['KeyB']) t='360';
   else if (keys['ArrowRight'] && keys['KeyA']) t='kickflip';
   else if (keys['ArrowRight'] && keys['KeyB']) t='180';
@@ -372,6 +434,7 @@ function tryTrick(){
     const d=TRICKS[t];
     player.trick={ name:t, total:d.total, rot:0, dir:d.dir, kind:d.kind };
     showCombo(d.label+'…'); sfxWhoosh();
+    if(t==='treflip'){ for(let i=0;i<5;i++) spawnSwirl(); }   // espiral de grafite no "pop"
   }
 }
 
@@ -414,6 +477,7 @@ function spawnRailGroup(){
 
 // spawner unificado: alterna corrimões e obstáculos espaçando pela largura
 function spawnFeature(){
+  if(state.level>=5){ spawnFeatureEra(); return; }
   if(state.level===4){ spawnFeatureLeague(); return; }
   const r=Math.random();
   if(r<0.40) spawnRailGroup();
@@ -421,6 +485,27 @@ function spawnFeature(){
   else if(r<0.70) spawnRamp();
   else if(r<0.86) spawnStairs();
   else spawnStar();
+}
+// E5: picos temáticos por rank — Master(bowl/half-pipe), GM(mega ramp), Legend(tudo)
+function spawnFeatureEra(){
+  const lv=state.level, r=Math.random();
+  if(lv===5){            // Master: bowls/half-pipes + trilhos
+    if(r<0.45) spawnRamp(1.18);
+    else if(r<0.75) spawnRailGroup();
+    else if(r<0.9) spawnGrassGap();
+    else spawnStar();
+  }else if(lv===6){      // Grand Master: MEGA RAMP
+    if(r<0.5) spawnRamp(1.5);
+    else if(r<0.75) spawnGiantRail();
+    else if(r<0.9) spawnGrassGap();
+    else spawnStar();
+  }else{                 // Legend: linha lendária (tudo junto)
+    if(r<0.25) spawnGiantRail();
+    else if(r<0.5) spawnRamp(1.5);
+    else if(r<0.72) spawnGrassGap();
+    else if(r<0.86) spawnRailGroup();
+    else spawnStar();
+  }
 }
 // Street League: muitas rampas, gaps de grama, corrimão gigante
 function spawnFeatureLeague(){
@@ -445,15 +530,35 @@ function spawnGrassGap(){
 }
 function spaceAfter(w){ railTimer=Math.floor((w+320+Math.random()*200)/Math.max(2,state.speed)); }
 function spawnScooter(){ obstacles.push({type:'scooter', x:state.scroll+W+90, w:50, h:52, hit:false}); spaceAfter(50); }
-function spawnRamp(){ obstacles.push({type:'ramp', x:state.scroll+W+90, w:78, h:62, used:false}); spaceAfter(78); }
+function spawnRamp(power){ power=power||1; obstacles.push({type:'ramp', x:state.scroll+W+90, w:78, h:62*power, used:false, power}); spaceAfter(78); }
 function spawnStairs(){ const w=92+Math.random()*36; obstacles.push({type:'stairs', x:state.scroll+W+90, w, h:72, steps:5, hit:false}); spaceAfter(w); }
 function spawnStar(){ obstacles.push({type:'star', x:state.scroll+W+90, y:GROUND-(95+Math.random()*55), w:30, got:false, a:0}); spaceAfter(40); }
 
 function startGrind(rl){
-  player.grinding=rl; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0; player.crooked=false;
-  chainAdd('GRIND',40); showCombo('TAIL GRIND!'); hitMission('grind',1);
+  player.grinding=rl; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0; player.crooked=false; player.boardslide=false; player.grab=false;
+  chainAddFlow('GRIND',40); showCombo('TAIL GRIND!'); hitMission('grind',1);
 }
-function endGrind(){ player.grinding=null; player.onGround=false; player.crooked=false; player.boardAngle=0; }
+function endGrind(){ player.grinding=null; player.onGround=false; player.crooked=false; player.boardslide=false; player.boardAngle=0; player.coyote=6; }  // coyote time ao sair do trilho
+// pulo unificado; boost deixa o "ollie out" do trilho mais alto
+function ollie(boost){
+  player.vy = JUMP_V*(aged()?0.9:1) - (boost||0);   // skate velho pula mais baixo (E2)
+  player.onGround=false; player.holdJump=true;
+  player.manual=false; player.grinding=null; player.coyote=0; player.jumpBuf=0;
+  sfxOllie();
+}
+// FREESTYLE old-school (Master+): No Comply e Boneless
+function doNoComply(){
+  player.onGround=false; player.holdJump=false; player.manual=false; player.didTrick=true;
+  player.vy=-7.5;                                   // pop baixinho, rápido (mantém o "flow")
+  player.freestyle={ name:'nocomply', t:0, dur:26 }; player.lastTrick='nocomply';
+  chainAddFlow('NO COMPLY',120); showCombo('NO COMPLY!'); sfxOllie(); hitMission('freestyle',1);
+}
+function doBoneless(){
+  player.onGround=false; player.holdJump=false; player.manual=false; player.didTrick=true;
+  player.vy=-16.6;                                  // grab: salta bem mais alto (vence gaps)
+  player.freestyle={ name:'boneless', t:0, dur:40 }; player.lastTrick='boneless';
+  chainAddFlow('BONELESS',160); showCombo('BONELESS! 🖐️'); sfxWhoosh(); hitMission('freestyle',1);
+}
 
 // colisões/efeitos dos obstáculos
 function updateObstacles(){
@@ -461,8 +566,8 @@ function updateObstacles(){
   for(const o of obstacles){
     if(o.type==='ramp'){
       if(!o.used && player.onGround && !player.grinding && wx>o.x && wx<o.x+o.w){
-        player.vy=LAUNCH_V; player.onGround=false; player.holdJump=false; o.used=true;
-        state.shake=9; showCombo('LAUNCH! 🚀'); sfxWhoosh();
+        player.vy=LAUNCH_V*(o.power||1); player.onGround=false; player.holdJump=false; o.used=true;
+        state.shake=9; showCombo((o.power>=1.4)?'MEGA RAMP! 🚀':'LAUNCH! 🚀'); sfxWhoosh();
       }
     }else if(o.type==='scooter'){
       if(!o.hit && wx>o.x-16 && wx<o.x+o.w+16 && player.y > GROUND-o.h+12){
@@ -517,21 +622,27 @@ function doSpecial(){
 function finalizeTrick(){
   const t=player.trick; if(!t) return;
   const d=TRICKS[t.name];
-  chainAdd(d.label,d.pts); advanceMission(t.name); glowTrail();
-  player.didTrick=true;
+  if(t.name==='treflip'){ chainAddFlow(d.label,d.pts); sfxClick(); for(let i=0;i<8;i++) spawnSwirl(); }  // encaixe perfeito + multiplicador (flow)
+  else chainAdd(d.label,d.pts);
+  advanceMission(t.name); glowTrail();
+  player.didTrick=true; player.lastTrick=t.name;
   player.trick=null; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0;
 }
 function resolveLanding(rail){
   const wasAir=!player.onGround;
-  player.vy=0; player.onGround=true; player.holdJump=false;
+  player.vy=0; player.onGround=true; player.holdJump=false; player.coyote=0;
   if(wasAir){
     spawnDust(); state.shake=6; sfxLand();
     if(player.trick){                 // ainda girando ao tocar o chão => caiu
       player.trick=null; startBail(); return;
-    }else if(!player.didTrick){
+    }else if(player.didTrick){
+      if(sk) skLanded(player.lastTrick);   // S.K.A.T.E.: encaixou um trick
+    }else{
       landOllie();                    // pulo simples (nenhuma manobra creditada)
     }
     player.didTrick=false;
+    if(player.freestyle){ player.freestyle=null; player.boardAngle=0; player.boardPop=0; }   // freestyle pousou
+    if(player.grab){ player.grab=false; player.boardPop=0; }                                  // largou o grab ao pousar
   }
   // especial 900 -> grind: ao pousar, desliza (usa o corrimão se houver, senão um powerslide no chão)
   if(wasAir && player.special900grind){
@@ -547,8 +658,9 @@ function resolveLanding(rail){
 // ============================================================
 function startBail(){
   bail={ phase:'erase', t:0, dur:40 };
-  player.special900grind=false;
+  player.special900grind=false; player.freestyle=null; player.grab=false; player.boardslide=false;
   chainBreak(); showCombo('BAIL! — combo perdido'); state.shake=12; sfxBail();
+  if(sk) skBail();
 }
 function updateBail(){
   bail.t++;
@@ -569,7 +681,17 @@ function updateBail(){
 const JUMP_V=-13.6, GRAV=0.72, GRAV_HOLD=0.34, SETTLE=16, LAUNCH_V=-18.8, SPECIAL_V=-19.5, SPECIAL_MAX=2000, SPECIAL_MAX2=4000;
 
 function update(){
-  if(state.phase==='start'){ fadeScratch(0); if(pressed('Space')) startTurn('play'); clearPressed(); return; }
+  if(state.phase==='start'){
+    fadeScratch(0);
+    if(pressed('ArrowUp')) state.menu=(state.menu+2)%3;
+    if(pressed('ArrowDown')) state.menu=(state.menu+1)%3;
+    if(pressed('Space')){
+      if(state.menu===0) startCampaign();
+      else if(state.menu===1) enterFree();
+      else startSkateGame('CPU', 0.5, 'free');
+    }
+    clearPressed(); return;
+  }
   if(state.phase==='turn'){ updateTurn(); fadeScratch(0); clearPressed(); return; }
   if(state.paused||state.won||state.over){ fadeScratch(0); clearPressed(); return; }
   if(state.mode==='fight'){ updateFight(); clearPressed(); return; }
@@ -580,20 +702,34 @@ function update(){
   if(state.shake>0) state.shake*=0.85;
   if(state.lowGrav>0) state.lowGrav--;
 
-  if(--railTimer<=0) spawnFeature();
+  if(--railTimer<=0 && !sk) spawnFeature();   // S.K.A.T.E.: pista limpa, foco nos tricks
+  if(sk) updateSkateDuel();
 
-  // GRIND (segue a inclinação; segure ↑ p/ CROOKED)
+  // jump buffer: lembra o Espaço por alguns frames (J1)
+  if(pressed('Space')) player.jumpBuf=7;
+
+  // GRIND (segure ↑ = CROOKED · segure B = BOARD SLIDE)
   if(player.grinding){
     const rl=player.grinding, wx=player.x+state.scroll;
-    if(wx < rl.x-4 || wx > rl.x+rl.w+4){ endGrind(); }   // saiu da ponta
+    if(wx < rl.x-4 || wx > rl.x+rl.w+4){ endGrind(); }   // saiu da ponta -> coyote time
     else{
       player.y=railYAt(rl,wx); player.vy=0;
-      player.crooked = !!keys['ArrowUp'];
-      if(pressed('ArrowUp')) showCombo('CROOKED GRIND!');
-      player.boardAngle += ((player.crooked?0.42:0)-player.boardAngle)*0.25;
-      chainTick(player.crooked?1.0:0.7);
-      if(Math.random() < (player.crooked?0.85:0.6)) spawnSpark();
-      if(pressed('Space')){ player.vy=JUMP_V; player.onGround=false; player.holdJump=true; endGrind(); sfxOllie(); }
+      const slide = !!keys['KeyB'];
+      player.boardslide = slide;
+      player.crooked = !slide && !!keys['ArrowUp'];
+      if(slide){
+        if(pressed('KeyB')){ showCombo('BOARD SLIDE!'); if(chain.items.length) chain.items[chain.items.length-1].label='BOARD SLIDE'; }  // mostra na composição
+        rl.wear = Math.min(1, (rl.wear||0)+0.012);                  // atrito desgasta o corrimão
+        chainTick(0.9);
+        if(Math.random()<0.85) spawnSlideSpark();                   // faíscas laterais
+        player.boardAngle += (0-player.boardAngle)*0.25;            // shape reto; o perpendicular é feito no desenho
+      }else{
+        if(pressed('ArrowUp')) showCombo('CROOKED GRIND!');
+        player.boardAngle += ((player.crooked?0.42:0)-player.boardAngle)*0.25;
+        chainTick(player.crooked?1.0:0.7);
+        if(Math.random() < (player.crooked?0.85:0.6)) spawnSpark();
+      }
+      if(player.jumpBuf>0){ ollie(1.6); showCombo('OLLIE OUT!'); }   // sai do trilho com boost
     }
   }
 
@@ -601,21 +737,31 @@ function update(){
   if(pressed('KeyS') && state.special>=SPECIAL_MAX && player.onGround && !player.grinding && !player.trick){
     doSpecial();
   }
-  // Ollie
-  if(pressed('Space') && player.onGround && !player.grinding){
-    player.vy=JUMP_V; player.onGround=false; player.holdJump=true; player.manual=false; sfxOllie();
+  // Ollie — do chão OU em coyote time logo após sair do trilho (J1)
+  if(player.jumpBuf>0 && !player.grinding && (player.onGround || player.coyote>0)){
+    const fromRail = (!player.onGround && player.coyote>0);
+    ollie(fromRail?1.6:0);
+    if(fromRail) showCombo('OLLIE OUT!');
   }
   if(!keys['Space']) player.holdJump=false;
+  if(player.jumpBuf>0) player.jumpBuf--;
+  if(player.coyote>0) player.coyote--;
+
+  // Freestyle de solo (Master+ / Skate Park): A = No Comply, B = Boneless
+  if(canFreestyle() && player.onGround && !player.grinding && !player.trick && !player.freestyle){
+    if(pressed('KeyA')) doNoComply();
+    else if(pressed('KeyB')) doBoneless();
+  }
 
   // Manual
   if(player.onGround && !player.grinding && keys['ArrowDown']){
-    if(!player.manual){ player.manual=true; chainAdd('MANUAL',25); showCombo('MANUAL!'); }
+    if(!player.manual){ player.manual=true; chainAddFlow('MANUAL',25); showCombo('MANUAL!'); }
     chainTick(0.45);
   }else{ player.manual=false; }
   // tilt: manual (tail) e tail grind usam o mesmo efeito; no grind soma a inclinação do corrimão
   let tiltTarget=0;
   if(player.manual) tiltTarget=-0.38;
-  else if(player.grinding){ const rl=player.grinding; tiltTarget=(player.crooked?-0.10:-0.30) + Math.atan2(rl.y2-rl.y1, rl.w); }
+  else if(player.grinding){ const rl=player.grinding; tiltTarget=(player.boardslide?-0.05 : (player.crooked?-0.10:-0.30)) + Math.atan2(rl.y2-rl.y1, rl.w); }
   player.manualTilt += (tiltTarget-player.manualTilt)*0.2;
 
   // Tricks
@@ -629,13 +775,15 @@ function update(){
     if(player.y<24){ player.y=24; if(player.vy<0) player.vy=0; }   // teto (evita sumir no alto)
     if(player.trick){
       const t=player.trick, before=t.rot;
-      t.rot=Math.min(t.rot + (TRICKS[t.name].spd||0.2), t.total);
+      t.rot=Math.min(t.rot + (TRICKS[t.name].spd||0.2)*(aged()?1.12:1), t.total);   // trucks soltos giram mais fácil (E2)
       // spin = corpo gira; shuv/flip = só o skate; bigspin = corpo + skate
       if(t.kind==='spin'){ player.bodyAngle=t.dir*t.rot; }
       else if(t.kind==='shuv'){ player.boardAngle=t.dir*t.rot; }
-      else if(t.kind==='flip'){ player.boardFlip=t.rot; }
+      else if(t.kind==='flip'){ player.boardFlip=t.rot; }                                      // kickflip: flip no eixo longo (scaleY)
+      else if(t.kind==='impossible'){ player.boardAngle=t.dir*t.rot; }                          // impossible: shape enrola end-over-end (giro no plano)
       else if(t.kind==='bigspin'){ player.bodyAngle=t.dir*t.rot; player.boardAngle=t.dir*t.rot; }
       else if(t.kind==='spinflip'){ player.bodyAngle=t.dir*t.rot; player.boardFlip=t.rot; }  // 1080 + kickflip
+      else if(t.kind==='treflip'){ player.boardAngle=-t.dir*t.rot; player.boardFlip=t.rot; }  // 360 kickflip: shape (shuv invertido + flip)
       // "pop": o skate sobe em relação aos pés e volta (arco suave no meio da manobra)
       const popMax = (t.kind==='spin') ? 6 : 12;
       player.boardPop = Math.sin((t.rot/t.total)*Math.PI) * popMax;
@@ -643,6 +791,17 @@ function update(){
       if(t.rot<t.total && Math.random()<0.4) spawnSwirl();
       if(t.rot>=t.total) finalizeTrick();             // completou no ar -> credita e libera o próximo
     }
+    if(player.freestyle){                              // anima No Comply / Boneless (sem girar o corpo)
+      const fs=player.freestyle, p=(fs.t++)/fs.dur;
+      if(fs.name==='nocomply'){ player.boardAngle=Math.sin(p*Math.PI)*0.55; player.boardPop=Math.sin(p*Math.PI)*8; }
+      else { player.boardPop=Math.sin(p*Math.PI)*11; }
+    }
+    // Indy Grab: B no ar (sem seta) agarra o shape -> estilo + bônus de flow
+    const arrowHeld = keys['ArrowUp']||keys['ArrowDown']||keys['ArrowLeft']||keys['ArrowRight'];
+    if(!player.onGround && !player.trick && !player.freestyle && keys['KeyB'] && !arrowHeld){
+      if(!player.grab){ player.grab=true; player.didTrick=true; player.lastTrick='indy'; chainAddFlow('INDY GRAB',110); showCombo('INDY GRAB!'); sfxGrab(); }
+      player.boardPop = 8;                             // puxa o shape pro pé/mão
+    }else if(player.grab){ player.grab=false; }
     let landedRail=null;
     if(player.vy>=0){
       const wx=player.x+state.scroll, prevY=player.y-player.vy;
@@ -687,17 +846,29 @@ function update(){
 //  Render
 // ============================================================
 function drawPaper(){
-  ctx.fillStyle='#fcfbf3'; ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle='#bcd2e8'; ctx.lineWidth=1;
+  const old=aged();
+  ctx.fillStyle= old?'#efe2c4':'#fcfbf3'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle= old?'#cbb58a':'#bcd2e8'; ctx.lineWidth=1;
   for(let y=40;y<H;y+=34){
     ctx.beginPath();
     for(let x=0;x<=W;x+=20) (x?ctx.lineTo(x,y+Math.sin((x+y)*0.05)*0.6):ctx.moveTo(x,y));
     ctx.stroke();
   }
-  ctx.strokeStyle='#e8a0a0'; ctx.lineWidth=1.5;
+  ctx.strokeStyle= old?'#b58a6a':'#e8a0a0'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(70,0); ctx.lineTo(70,H); ctx.stroke();
-  ctx.fillStyle='#d8d2c4';
+  ctx.fillStyle= old?'#d6c49a':'#d8d2c4';
   for(let y=60;y<H;y+=120){ ctx.beginPath(); ctx.arc(34,y,9,0,Math.PI*2); ctx.fill(); }
+  if(old) drawCoffeeStains();
+}
+function drawCoffeeStains(){
+  ctx.save();
+  ctx.strokeStyle='rgba(110,75,40,0.16)'; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.arc(165,360,46,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(780,140,32,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='rgba(110,75,40,0.05)';
+  ctx.beginPath(); ctx.arc(165,360,46,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(780,140,32,0,Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 function drawGround(){
   const gy=GROUND+player.h/2+6;
@@ -713,6 +884,13 @@ function drawRails(){
     sketchLine(sx,rl.y1, sx+rl.w,rl.y2, '#2a2a2a', wd);
     const n=Math.max(2, rl.w/52|0);
     for(let i=0;i<=n;i++){ const t=i/n, lx=sx+rl.w*t, ly=rl.y1+(rl.y2-rl.y1)*t; sketchLine(lx,ly, lx,gy,'#2a2a2a',2); }
+    if(rl.wear>0){   // Board Slide: grafite "raspado" pelo atrito (linha clara por cima)
+      ctx.save(); ctx.globalAlpha=Math.min(0.85, rl.wear);
+      const pc = aged()?'#e7dab9':'#f3efe0';
+      sketchLine(sx,rl.y1-1, sx+rl.w,rl.y2-1, pc, 2);
+      for(let i=0;i<rl.w*rl.wear; i+=12) sketchLine(sx+i,rl.y1-2,(sx+i+6),rl.y1-2+(Math.random()*3-1.5), pc, 1.5);
+      ctx.restore();
+    }
     if(rl.giant){ ctx.save(); ctx.fillStyle='#2a2a2a'; ctx.font='14px "Comic Sans MS",cursive'; ctx.textAlign='center'; ctx.fillText('MEGA RAIL', sx+rl.w/2, rl.y1-8); ctx.restore(); }
   }
 }
@@ -770,7 +948,7 @@ function drawRamp(sx,gy,o){
 }
 function drawStairs(sx,gy,o){
   // abre o vão: apaga o chão reto nesse trecho pra ler como buraco/escada
-  ctx.fillStyle='#fcfbf3'; ctx.fillRect(sx-2, gy-3, o.w+6, o.h+46);
+  ctx.fillStyle=aged()?'#efe2c4':'#fcfbf3'; ctx.fillRect(sx-2, gy-3, o.w+6, o.h+46);
   const n=o.steps, sw=o.w/n, sh=o.h/n;
   let x=sx, y=gy;
   for(let i=0;i<n;i++){ sketchLine(x,y,x+sw,y,'#2a2a2a',2.5); x+=sw; sketchLine(x,y,x,y+sh,'#2a2a2a',2.5); y+=sh; }
@@ -778,7 +956,7 @@ function drawStairs(sx,gy,o){
 }
 function drawGrass(sx,gy,o){
   // abre o vão e desenha tufos de grama (precisa pular)
-  ctx.fillStyle='#fcfbf3'; ctx.fillRect(sx-2, gy-2, o.w+4, o.h+44);
+  ctx.fillStyle=aged()?'#efe2c4':'#fcfbf3'; ctx.fillRect(sx-2, gy-2, o.w+4, o.h+44);
   sketchLine(sx,gy+8, sx+o.w,gy+8,'#3a8a3a',2.5);            // terra/base
   for(let x=sx+3; x<sx+o.w; x+=8){
     const hh=9+Math.random()*9;
@@ -814,6 +992,7 @@ function drawFigure(){
   ctx.translate(0, player.h/2 - player.boardPop);     // pivô = centro do skate (+ pop p/ cima)
   ctx.rotate(player.manualTilt + player.boardAngle);  // tilt do manual + shuv (giro no plano)
   ctx.scale(1, Math.cos(player.boardFlip));           // kickflip = flip no eixo longo
+  if(player.boardslide) ctx.scale(0.4,1);             // board slide: shape perpendicular (visto de lado = foreshortened)
   // deck com leve espessura -> o flip gira de verdade (não só as rodas)
   sketchLine(-24,-2.5, 24,-2.5,'#2a2a2a',2.5);        // face de cima (lixa)
   sketchLine(-24, 2.5, 24, 2.5,'#2a2a2a',2.5);        // face de baixo
@@ -838,10 +1017,27 @@ function drawFigure(){
   }else{
     sketchLine(-8,player.h-22,-12,player.h/2,'#2a2a2a',2.5); sketchLine(8,player.h-22,12,player.h/2,'#2a2a2a',2.5);  // pernas finas
   }
+  if(player.freestyle){
+    if(player.freestyle.name==='boneless') sketchLine(12,2, 3, player.h/2-player.boardPop,'#2a2a2a',2.5);   // mão segurando o shape
+    else sketchLine(8,player.h-22, 24, player.h/2+8,'#2a2a2a',2.5);                                         // pé da frente plantado
+  }
+  if(player.grab){                                                  // INDY GRAB: braço puxa o shape + marca de pressão
+    const gy2 = player.h/2 - player.boardPop;
+    sketchLine(8,2, 2, gy2-2,'#2a2a2a',2.5);                        // braço até o meio do shape
+    sketchLine(-4,gy2,4,gy2,'#2a2a2a',4); sketchLine(-3,gy2-1.5,3,gy2-1.5,'#2a2a2a',3.5);  // marca densa de pressão (grafite)
+  }
   ctx.restore();
   ctx.save(); ctx.rotate(player.capAngle);
   sketchCircle(0,-22,12,'#2a2a2a',3);
-  if(player.upgraded){
+  if(player.veteran){
+    // VETERANO: cabelo grisalho espetado + óculos + barba
+    sketchLine(-10,-30,-12,-40,'#777',2); sketchLine(-3,-32,-3,-43,'#777',2);
+    sketchLine(4,-31,7,-41,'#777',2); sketchLine(10,-29,14,-37,'#777',2);
+    sketchRect(-10,-25,8,5,'#2a2a2a',2); sketchRect(2,-25,8,5,'#2a2a2a',2);   // óculos
+    sketchLine(-2,-23,2,-23,'#2a2a2a',2);
+    // barba (tracinhos sob o queixo)
+    for(let bx=-9; bx<=9; bx+=3) sketchLine(bx,-13, bx+jitter(), -13+4+Math.random()*4,'#777',1.6);
+  }else if(player.upgraded){
     // touca (gorro) com pompom
     ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,-26,12,Math.PI,Math.PI*2); ctx.stroke();
     sketchLine(-12,-26,12,-26,'#2a2a2a',3);                       // dobra da touca
@@ -893,6 +1089,15 @@ function drawHUD(){
     ctx.fillText('▸ '+m.task+'   ('+m.prog+'/'+m.need+')', 90, 62);
     ctx.fillStyle='#888'; ctx.font='13px "Comic Sans MS",cursive';
     ctx.fillText('como: '+m.hint, 90, 82);
+  }else if(state.freeRun && !sk){
+    ctx.fillText('Skate Park — modo livre', 88, 38);
+  }
+  if(canFreestyle()){
+    ctx.fillStyle='#7a6a3a'; ctx.font='13px "Comic Sans MS",cursive'; ctx.textAlign='left';
+    ctx.fillText('old-school:  A = No Comply   ·   B = Boneless   ·   ←+K = 360 Kickflip   ·   →+K = Impossible', 90, H-14);
+  }else if(state.level>=4 || state.freeRun){
+    ctx.fillStyle='#7a6a3a'; ctx.font='13px "Comic Sans MS",cursive'; ctx.textAlign='left';
+    ctx.fillText('novo:  ←+K = 360 Kickflip   ·   →+K = Impossible', 90, H-14);
   }
   ctx.textAlign='right'; ctx.fillStyle='#2a2a2a'; ctx.font='22px "Comic Sans MS",cursive';
   ctx.fillText('Score '+totalScore, W-24, 38);
@@ -900,7 +1105,7 @@ function drawHUD(){
   ctx.fillText('Recorde '+best, W-24, 58);
   if(chain.active && chain.items.length){
     ctx.fillStyle='#c0392b'; ctx.font='16px "Comic Sans MS",cursive';
-    ctx.fillText('Combo x'+chain.items.length, W-24, 80);
+    ctx.fillText('Combo x'+chain.items.length + (chain.flow?'   ·   FLOW x'+chain.flow:''), W-24, 80);
     ctx.fillStyle='#7a5cc0'; ctx.font='13px "Comic Sans MS",cursive';
     ctx.fillText(chain.items.map(i=>i.label).join(' + '), W-24, 100);
   }
@@ -962,14 +1167,18 @@ function drawStartScreen(){
   // skatinho decorativo
   sketchLine(W/2-50,260, W/2+50,260,'#2a2a2a',3);
   sketchCircle(W/2-32,270,7,'#2a2a2a',2); sketchCircle(W/2+32,270,7,'#2a2a2a',2);
-  ctx.fillStyle='#555'; ctx.font='18px "Comic Sans MS",cursive';
-  ctx.fillText('4 fases · skate + luta · vire campeão da Street League', W/2, 320);
-  ctx.fillStyle='#7a6a3a'; ctx.font='20px "Comic Sans MS",cursive';
-  ctx.fillText('Recorde: '+best, W/2, 360);
-  // pulso no "começar"
-  const a=0.5+0.5*Math.sin(Date.now()/300);
-  ctx.globalAlpha=a; ctx.fillStyle='#2a2a2a'; ctx.font='bold 24px "Comic Sans MS",cursive';
-  ctx.fillText('▸ Pressione ESPAÇO para começar ◂', W/2, 420);
+  ctx.fillStyle='#555'; ctx.font='16px "Comic Sans MS",cursive';
+  ctx.fillText('campanha (7 fases): base → cidade → luta → liga → Era da Lenda', W/2, 300);
+  // menu de modos
+  const opts=['Campanha','Skate Park (livre)','Game of S.K.A.T.E.'];
+  opts.forEach((o,i)=>{
+    const y=340+i*34, sel=(state.menu===i);
+    ctx.font=(sel?'bold 24px':'20px')+' "Comic Sans MS",cursive';
+    ctx.fillStyle= sel?'#2a2a2a':'#888';
+    ctx.fillText((sel?'▸ ':'   ')+o+(sel?' ◂':''), W/2, y);
+  });
+  ctx.fillStyle='#7a6a3a'; ctx.font='15px "Comic Sans MS",cursive';
+  ctx.fillText('↑/↓ escolher · ESPAÇO confirmar · Recorde: '+best, W/2, 452);
   ctx.restore();
 }
 function drawPageTurn(){
@@ -1004,8 +1213,8 @@ function drawScene(){
 function drawEnd(won){
   ctx.save(); ctx.fillStyle='rgba(252,251,243,.95)'; ctx.fillRect(0,0,W,H); ctx.textAlign='center';
   if(won){
-    ctx.fillStyle='#2a2a2a'; ctx.font='bold 38px "Comic Sans MS",cursive';
-    ctx.fillText('CAMPEÃO DA STREET LEAGUE! 🏆', W/2, 56);
+    ctx.fillStyle='#2a2a2a'; ctx.font='bold 40px "Comic Sans MS",cursive';
+    ctx.fillText('🏆 LENDA DO SKATE! 🏆', W/2, 56);
     drawChampionScene();
     ctx.fillStyle='#2a2a2a'; ctx.font='22px "Comic Sans MS",cursive';
     ctx.fillText('Score final: '+totalScore, W/2, H-66);
@@ -1088,9 +1297,9 @@ function drawPause(){
   ctx.save(); ctx.fillStyle='rgba(252,251,243,.92)'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#2a2a2a'; ctx.textAlign='center'; ctx.font='bold 40px "Comic Sans MS",cursive';
   ctx.fillText('— Pausa —', W/2, 70);
-  if(state.mode==='fight'){
+  if(state.mode!=='skate' || state.freeRun){
     ctx.font='20px "Comic Sans MS",cursive'; ctx.fillStyle='#555';
-    ctx.fillText('Modo Luta — vença o Bad Boy!', W/2, 140);
+    ctx.fillText(state.mode==='fight'?'Modo Luta — vença o Bad Boy!':(sk?'Game of S.K.A.T.E.':'Skate Park — modo livre'), W/2, 140);
     ctx.fillStyle='#888'; ctx.font='15px "Comic Sans MS",cursive';
     ctx.fillText('P para voltar', W/2, H-30); ctx.restore(); return;
   }
@@ -1109,12 +1318,14 @@ function drawPause(){
 }
 
 function draw(){
+  inkJ = aged()?1.7:0.9;                 // traço mais trêmulo na Era da Lenda (E3)
   if(state.mode==='fight'){
     drawFightScene(); drawFightHUD();
   }else{
     drawScene();
     if(state.phase==='start'){ drawStartScreen(); return; }
     drawHUD();
+    if(sk) drawSkateGameOverlay();          // duelo de S.K.A.T.E. por cima do jogo real
   }
   if(state.phase==='turn'){ drawPageTurn(); return; }
   if(state.paused) drawPause();
@@ -1135,9 +1346,13 @@ function initFight(){
     msg:'PIQUE FAMOSO NA CIDADE...', msgT:120
   };
 }
+const FURY_MAX=100;
 function makeFighter(x,facing,isPlayer){
-  return { x, vx:0, hp:100, maxhp:100, facing, isPlayer, st:'idle', atk:null, cd:0, hitFlash:0, stun:0, blocking:false, aiTimer:30 };
+  return { x, vx:0, hp:100, maxhp:100, facing, isPlayer, st:'idle', atk:null, cd:0, hitFlash:0, stun:0, blocking:false, aiTimer:30,
+    combo:0, comboWindow:0, fury:0, invuln:false };
 }
+function addFury(fr,amt){ fr.fury=Math.min(FURY_MAX, fr.fury+amt); }
+function showFightMsg(text,t){ if(fight){ fight.msg=text; fight.msgT=t||60; } }
 function updateFight(){
   const y=fight.you, f=fight.foe;
   if(state.shake>0) state.shake*=0.85;
@@ -1168,7 +1383,8 @@ function controlPlayer(y,f){
   if(!y.atk && !y.blocking && y.stun<=0){
     if(keys['ArrowLeft']) y.vx-=3;
     if(keys['ArrowRight']) y.vx+=3;
-    if(y.cd<=0){
+    if(y.fury>=FURY_MAX && pressed('KeyS')){ startSpin(y); }
+    else if(y.cd<=0){
       if(pressed('KeyA')) startAttack(y,'kick');
       else if(pressed('KeyB')) startAttack(y,'punch');
     }
@@ -1178,8 +1394,12 @@ function aiFighter(f,y){
   f.facing=(y.x>=f.x)?1:-1; f.vx=0; f.blocking=false;
   if(f.atk||f.stun>0) return;
   const dist=Math.abs(f.x-y.x); f.aiTimer--;
+  if(f.fury>=FURY_MAX && dist<92 && Math.random()<0.06){ startSpin(f); return; }   // giro especial
   if(dist>92){ f.vx=(y.x>f.x?1:-1)*2.4; }
   else if(dist<52){ f.vx=(y.x>f.x?-1:1)*1.8; }
+  else if(f.comboWindow>0 && f.cd<=0 && Math.random()<0.55){                       // encadeia combo
+    startAttack(f, Math.random()<0.6?'punch':'kick');
+  }
   else if(f.cd<=0 && f.aiTimer<=0){
     const r=Math.random();
     if(r<0.18){ f.blocking=true; f.aiTimer=24+Math.random()*28; }
@@ -1187,11 +1407,26 @@ function aiFighter(f,y){
   }
 }
 function startAttack(fr,type){
+  // C1: encadeia combo se ainda na janela
+  if(fr.comboWindow>0 && fr.combo<3) fr.combo++; else fr.combo=1;
+  fr.comboWindow=0;
   const def = type==='kick'
     ? {dur:26,hitA:9,hitB:16,range:84,dmg:11,kb:6}
     : {dur:18,hitA:5,hitB:10,range:58,dmg:7,kb:3};
+  const mult = 1 + (fr.combo-1)*0.3;                  // dano cresce no combo
+  def.dmg = def.dmg*mult;
+  def.combo = fr.combo;
+  if(fr.combo>=3){ def.kb*=1.9; def.finisher=true; }  // 3º golpe = finalização (empurrão forte)
   fr.atk=Object.assign({type,t:0,landed:false},def); fr.st=type;
   if(fr.isPlayer){ if(type==='kick') sfxWhoosh(); else sfxOllie(); }
+}
+// C2: giro especial com o skate (multi-hit, super armadura)
+function startSpin(fr){
+  fr.fury=0; fr.combo=0; fr.comboWindow=0; fr.invuln=true;
+  fr.atk={ type:'spin', t:0, dur:48, range:96, dmg:7, kb:5, lastHit:-99 };
+  fr.st='spin';
+  if(fr.isPlayer) showFightMsg('★ GIRO DE SKATE! ★', 60);
+  sfxSpecial(); state.shake=9;
 }
 function stepFighter(fr,opp){
   if(fr.hitFlash>0) fr.hitFlash--;
@@ -1199,22 +1434,38 @@ function stepFighter(fr,opp){
   fr.x=Math.max(ARENA_L,Math.min(ARENA_R, fr.x+fr.vx));
   if(fr.atk){
     const a=fr.atk; a.t++;
-    if(!a.landed && a.t>=a.hitA && a.t<=a.hitB){
-      const dist=Math.abs(fr.x-opp.x), inFront=(opp.x-fr.x)*fr.facing>=-10;
-      if(dist<=a.range && inFront){ a.landed=true; applyHit(opp, a.dmg, a.kb*fr.facing); }
+    if(a.type==='spin'){
+      // multi-hit: acerta a cada ~8 frames quem estiver no alcance
+      if(a.t-a.lastHit>=8 && Math.abs(fr.x-opp.x)<=a.range){
+        a.lastHit=a.t; addFury(fr,4);
+        applyHit(opp, a.dmg, (opp.x>=fr.x?1:-1)*a.kb, false);
+      }
+      if(a.t>=a.dur){ fr.atk=null; fr.st='idle'; fr.invuln=false; fr.cd=18; }
+    }else{
+      if(!a.landed && a.t>=a.hitA && a.t<=a.hitB){
+        const dist=Math.abs(fr.x-opp.x), inFront=(opp.x-fr.x)*fr.facing>=-10;
+        if(dist<=a.range && inFront){ a.landed=true; addFury(fr,8); applyHit(opp, a.dmg, a.kb*fr.facing, a.finisher); }
+      }
+      if(a.t>=a.dur){
+        fr.cd = a.finisher ? 26 : (a.type==='kick'?12:8);    // recuperação (menor p/ encadear)
+        fr.comboWindow = a.finisher ? 0 : 22;                // janela de combo (some após o finisher)
+        if(a.finisher) fr.combo=0;
+        fr.atk=null; fr.st='idle';
+      }
     }
-    if(a.t>=a.dur){ fr.cd=(a.type==='kick'?16:10); fr.atk=null; fr.st='idle'; }
   }else{
-    if(fr.cd>0) fr.cd--;   // recarrega o golpe (vale p/ jogador e IA)
+    if(fr.cd>0) fr.cd--;
+    if(fr.comboWindow>0){ fr.comboWindow--; if(fr.comboWindow===0) fr.combo=0; }
     fr.st = fr.stun>0?'hit' : (fr.blocking?'block' : (Math.abs(fr.vx)>0.1?'walk':'idle'));
   }
 }
-function applyHit(opp,dmg,kb){
-  if(opp.blocking){ dmg*=0.25; kb*=0.4; opp.hitFlash=6; sfxHit(true); }
-  else { opp.stun=14; opp.hitFlash=12; sfxHit(false); }
+function applyHit(opp,dmg,kb,finisher){
+  if(opp.invuln) return;                       // super armadura do giro
+  if(opp.blocking){ dmg*=0.25; kb*=0.4; opp.hitFlash=6; addFury(opp,2); sfxHit(true); }
+  else { opp.stun = finisher?22:14; opp.hitFlash = finisher?16:12; addFury(opp,5); sfxHit(false); }
   opp.hp=Math.max(0, opp.hp-dmg);
   opp.x=Math.max(ARENA_L,Math.min(ARENA_R, opp.x+kb));
-  state.shake=Math.max(state.shake, opp.blocking?3:7);
+  state.shake=Math.max(state.shake, opp.blocking?3:(finisher?10:7));
 }
 
 function drawFightScene(){
@@ -1242,6 +1493,8 @@ function drawFighter(f){
   ctx.save(); ctx.translate(f.x, gy); ctx.scale(f.facing,1);
   if(f.hitFlash>0 && Math.floor(f.hitFlash/2)%2===0) ctx.globalAlpha=0.45;
   const col='#2a2a2a', hipY=-28, shoY=-56, headY=-67;
+  // C2: durante o giro, gira a figura inteira no eixo central
+  if(f.st==='spin' && f.atk){ ctx.translate(0,hipY); ctx.rotate(f.atk.t*0.55); ctx.translate(0,-hipY); }
   const lean = f.st==='hit' ? -7 : (f.st==='block'? -2 : 0);
   sketchLine(0,hipY, lean*0.35, shoY, col,3);                 // tronco
   drawFightHead(f, lean, headY, col);
@@ -1290,29 +1543,177 @@ function drawSkateAt(x,y,col){ sketchLine(x-11,y,x+11,y,col,2.5); sketchCircle(x
 
 function drawFightHUD(){
   if(!fight) return;
-  drawHpBar(40, 40, fight.you.hp/fight.you.maxhp, 'VOCÊ', false);
-  drawHpBar(W-40-240, 40, fight.foe.hp/fight.foe.maxhp, 'BAD BOY', true);
+  drawHpBar(40, 40, fight.you, 'VOCÊ', false);
+  drawHpBar(W-40-240, 40, fight.foe, 'BAD BOY', true);
   ctx.save(); ctx.textAlign='center';
+  // contador de combo do jogador
+  if(fight.you.combo>1){
+    ctx.fillStyle='#c0392b'; ctx.font='bold 22px "Comic Sans MS",cursive';
+    ctx.fillText('COMBO x'+fight.you.combo+'!', W/2, 84);
+  }
   if(fight.msgT>0 && fight.msg){
     ctx.globalAlpha=Math.min(1,fight.msgT/30);
     ctx.fillStyle='#2a2a2a'; ctx.font='bold 34px "Comic Sans MS",cursive';
-    ctx.fillText(fight.msg, W/2, 120); ctx.globalAlpha=1;
+    ctx.fillText(fight.msg, W/2, 124); ctx.globalAlpha=1;
   }
+  // dica + aviso de fúria pronta
   ctx.fillStyle='#777'; ctx.font='14px "Comic Sans MS",cursive';
-  ctx.fillText('← → mover  ·  A chute  ·  B soco  ·  ↓ defender', W/2, H-22);
+  ctx.fillText('← → mover  ·  A chute  ·  B soco  ·  ↓ defender  ·  S giro (fúria cheia)', W/2, H-22);
+  if(fight.you.fury>=FURY_MAX && !fight.result && fight.intro<=0){
+    const a=0.5+0.5*Math.sin(Date.now()/160);
+    ctx.globalAlpha=a; ctx.fillStyle='#7a5cc0'; ctx.font='bold 17px "Comic Sans MS",cursive';
+    ctx.fillText('★ FÚRIA PRONTA — aperte S!', W/2, H-42); ctx.globalAlpha=1;
+  }
   ctx.restore();
 }
-function drawHpBar(x,y,frac,label,right){
-  const w=240,h=16; frac=Math.max(0,frac);
+function drawHpBar(x,y,fr,label,right){
+  const w=240,h=16, frac=Math.max(0,fr.hp/fr.maxhp);
   ctx.save(); ctx.textAlign=right?'right':'left';
   ctx.fillStyle='#2a2a2a'; ctx.font='15px "Comic Sans MS",cursive';
   ctx.fillText(label, right?x+w:x, y-6);
+  // vida
   sketchRect(x,y,w,h,'#2a2a2a',2);
   ctx.fillStyle = frac>0.3? '#2a7d2a' : '#c0392b';
   ctx.fillRect(right? x+2+(w-4)*(1-frac) : x+2, y+2, (w-4)*frac, h-4);
+  // fúria (barrinha fina embaixo)
+  const fy=y+h+3, ff=Math.max(0,fr.fury/FURY_MAX), full=fr.fury>=FURY_MAX;
+  sketchRect(x,fy,w,7,'#2a2a2a',1.5);
+  ctx.fillStyle = full ? '#d4a017' : '#7a5cc0';
+  ctx.fillRect(right? x+2+(w-4)*(1-ff) : x+2, fy+1.5, (w-4)*ff, 4);
+  ctx.fillStyle='#7a5cc0'; ctx.font='10px "Comic Sans MS",cursive'; ctx.textAlign=right?'right':'left';
+  ctx.fillText('FÚRIA', right?x+w:x, fy+6);
   ctx.restore();
 }
 
+// ============================================================
+//  GAME OF S.K.A.T.E. (E8) e BOSS do Bad Boy (E6)
+// ============================================================
+const TR_HINT = { kickflip:'→+A', '180':'→+B', '360':'↑+B', '540':'↑+A', shuv:'←+A', bigspin:'↓+B', impossible:'→+K', treflip:'←+K' };
+const SK_POOL = ['kickflip','180','360','540','shuv','bigspin','impossible'];   // manobras que o rival pode pedir
+function trLabel(n){ if(TRICKS[n]) return TRICKS[n].label; if(n==='nocomply') return 'NO COMPLY'; if(n==='boneless') return 'BONELESS'; if(n==='indy') return 'INDY GRAB'; return (n||'').toUpperCase(); }
+function trHint(n){ return TR_HINT[n]||''; }
+// agora o S.K.A.T.E. usa a MESMA jogabilidade: você skata de verdade e ENCAIXA as manobras
+function startSkateGame(name, skill, context){
+  state.mode='skate'; state.freeRun=true; fight=null;
+  missions=[]; curMission=0;
+  resetSkateRun();
+  sk={ name, skill, context:context||'free', youL:0, foeL:0, leader:'you',
+       phase:'intro', timer:100, timerMax:100, afterFn:null, trick:null,
+       msg:(context==='boss'?'REVANCHE: '+name+' te desafiou no S.K.A.T.E.!':'GAME OF S.K.A.T.E.'), msgT:120,
+       foeAnim:0, result:null, resultT:0 };
+  startTurn('play');
+}
+function skWord(n){ const w='SKATE'; let s=''; for(let i=0;i<5;i++) s+=(i<n?w[i]:'_')+' '; return s.trim(); }
+function skMsg(t,d){ sk.msg=t; sk.msgT=d||60; }
+function skWait(frames,fn){ sk.phase='wait'; sk.timer=frames; sk.afterFn=fn; }
+function skLose(who){
+  if(who==='you') sk.youL++; else sk.foeL++;
+  if(sk.youL>=5){ sk.phase='over'; sk.result='lose'; sk.resultT=180; skMsg('VOCÊ PERDEU O S.K.A.T.E.', 180); sfxBail(); }
+  else if(sk.foeL>=5){ sk.phase='over'; sk.result='win'; sk.resultT=180; skMsg('VOCÊ VENCEU O S.K.A.T.E.!', 180); sfxMission(); }
+}
+function skBeginYouSet(){ sk.phase='you_set'; sk.timer=sk.timerMax=360; sk.trick=null; skMsg('SUA VEZ — encaixe uma manobra!', 60); }
+function skEnterYouMatch(){ sk.phase='you_match'; sk.timer=sk.timerMax=420; }
+function skBeginFoeMatch(){
+  sk.foeAnim=34;
+  if(Math.random()<sk.skill){ skMsg(sk.name+' copiou!',55); sfxLand(); skWait(55, skBeginYouSet); }       // você continua líder
+  else { skMsg(sk.name+' caiu!',60); sfxBail(); skLose('foe'); if(sk.phase!=='over'){ sk.leader='foe'; skWait(80, skBeginFoeSet); } }
+}
+function skBeginFoeSet(){
+  const n=SK_POOL[Math.floor(Math.random()*SK_POOL.length)];
+  sk.trick={ name:n, label:trLabel(n), hint:trHint(n) };
+  if(Math.random()>sk.skill){                  // a CPU também pode CAIR ao firmar (fica vencível)
+    sk.foeAnim=18; skMsg(sk.name+' tentou '+sk.trick.label+' e CAIU!',70); sfxBail();
+    skLose('foe'); if(sk.phase!=='over'){ sk.leader='you'; skWait(80, skBeginYouSet); }
+    return;
+  }
+  sk.foeAnim=34; sfxWhoosh();
+  skMsg(sk.name+' mandou '+sk.trick.label+' — ENCAIXE o mesmo!  ('+sk.trick.hint+')', 120);
+  skWait(70, skEnterYouMatch);
+}
+// EVENTOS vindos do jogo real (chamados ao pousar/cair):
+function skLanded(name){
+  if(!sk || !name) return;
+  if(sk.phase==='you_set'){
+    sk.trick={ name, label:trLabel(name), hint:trHint(name) };
+    skMsg('Você encaixou '+sk.trick.label+'!',60); skWait(50, skBeginFoeMatch);
+  }else if(sk.phase==='you_match'){
+    if(sk.trick && name===sk.trick.name){ skMsg('Copiou! 🔥',55); skWait(50, skBeginFoeSet); }            // foe continua líder
+    else { skMsg('Manobra errada! (era '+sk.trick.label+')',75); skLose('you'); if(sk.phase!=='over'){ sk.leader='you'; skWait(80, skBeginYouSet); } }
+  }
+}
+function skBail(){
+  if(!sk) return;
+  if(sk.phase==='you_set'){ skMsg('Caiu! tenta de novo',45); }                          // setando: pode tentar de novo até o tempo
+  else if(sk.phase==='you_match'){ skMsg('Caiu!',55); skLose('you'); if(sk.phase!=='over'){ sk.leader='you'; skWait(80, skBeginYouSet); } }
+}
+function updateSkateDuel(){
+  if(sk.msgT>0) sk.msgT--;
+  if(sk.foeAnim>0) sk.foeAnim--;
+  switch(sk.phase){
+    case 'over':
+      if(--sk.resultT<=0){
+        if(sk.context==='boss'){ if(sk.result==='win') startRankRun(7); else state.over=true; }
+        else { state.phase='start'; state.mode='skate'; state.freeRun=false; sk=null; }
+      }
+      break;
+    case 'intro': if(--sk.timer<=0){ sk.leader='you'; skBeginYouSet(); } break;
+    case 'wait':  if(--sk.timer<=0){ const f=sk.afterFn; sk.afterFn=null; if(f) f(); } break;
+    case 'you_set':
+      if(--sk.timer<=0){ skMsg('Tempo! sem manobra',60); skLose('you'); if(sk.phase!=='over'){ sk.leader='foe'; skWait(80, skBeginFoeSet); } }
+      break;
+    case 'you_match':
+      if(--sk.timer<=0){ skMsg('Tempo!',60); skLose('you'); if(sk.phase!=='over'){ sk.leader='you'; skWait(80, skBeginYouSet); } }
+      break;
+  }
+}
+// --- overlay do S.K.A.T.E. (por cima do jogo real) ---
+function drawSkateGameOverlay(){
+  if(!sk) return;
+  // rival no canto direito (anima quando manda/copia/cai)
+  drawMiniSkater(745, -1, sk.foeAnim, false, sk.trick?sk.trick.name:null);
+  ctx.save(); ctx.textAlign='center';
+  ctx.fillStyle='#2a2a2a'; ctx.font='bold 20px "Comic Sans MS",cursive';
+  ctx.fillText('VOCÊ', 150, 118); ctx.fillText(sk.name, W-150, 118);
+  ctx.font='bold 28px "Comic Sans MS",cursive'; ctx.fillStyle='#c0392b';
+  ctx.fillText(skWord(sk.youL), 150, 150); ctx.fillText(skWord(sk.foeL), W-150, 150);
+  if(sk.msgT>0){ ctx.globalAlpha=Math.min(1,sk.msgT/30); ctx.fillStyle='#2a2a2a'; ctx.font='bold 26px "Comic Sans MS",cursive'; ctx.fillText(sk.msg, W/2, 182); ctx.globalAlpha=1; }
+  if(sk.phase==='you_set' || sk.phase==='you_match'){
+    const fr=Math.max(0,sk.timer/sk.timerMax), bw=320, bx=W/2-bw/2, by=198;
+    sketchRect(bx,by,bw,12,'#2a2a2a',2);
+    ctx.fillStyle=fr>0.3?'#2a7d2a':'#c0392b'; ctx.fillRect(bx+2,by+2,(bw-4)*fr,8);
+    ctx.fillStyle='#555'; ctx.font='14px "Comic Sans MS",cursive';
+    ctx.fillText(sk.phase==='you_set'?'Dê ollie (Espaço) e ENCAIXE qualquer manobra' : ('ENCAIXE: '+sk.trick.label+'   ('+sk.trick.hint+')'), W/2, by+30);
+  }
+  ctx.restore();
+}
+function drawMiniSkater(x, facing, anim, you, trickName){
+  const gy=GROUND+player.h/2+6, col='#2a2a2a', hipY=-28, shoY=-56, headY=-67;
+  const kind = (anim>0 && trickName && TRICKS[trickName]) ? TRICKS[trickName].kind : null;
+  const k = anim>0 ? (1-anim/34) : 0;
+  // qual parte gira (igual ao jogo principal): spin/bigspin/spinflip = corpo; shuv = board no plano; flip = board no eixo
+  const bodySpin  = (kind==='spin'||kind==='bigspin'||kind==='spinflip') ? k*Math.PI*2 : 0;
+  const boardSpin = (kind==='shuv'||kind==='bigspin') ? k*Math.PI*2 : 0;
+  const boardFlip = (kind==='flip'||kind==='spinflip') ? k*Math.PI*2 : 0;
+  ctx.save(); ctx.translate(x, gy); ctx.scale(facing,1);
+  if(anim>0) ctx.translate(0, -Math.sin(k*Math.PI)*34);       // pulinho
+  // CORPO (só gira em spins)
+  ctx.save();
+  if(bodySpin){ ctx.translate(0,hipY); ctx.rotate(bodySpin); ctx.translate(0,-hipY); }
+  sketchLine(0,hipY,0,shoY,col,3);
+  sketchLine(0,shoY+6,12,hipY-4,col,2.5); sketchLine(0,shoY+6,-10,hipY-6,col,2.5);
+  sketchLine(0,hipY,-9,0,col,3); sketchLine(0,hipY,9,0,col,3);
+  sketchCircle(0,headY,9,col,3);
+  if(you){ sketchRect(-7,headY-2,14,4,col,2); sketchLine(-9,headY-7,9,headY-7,col,2.5); }     // óculos + touca/veterano
+  else { sketchLine(-6,headY-7,-8,headY-15,col,2); sketchLine(2,headY-9,2,headY-17,col,2); }  // bad boy
+  ctx.restore();
+  // SKATE (acompanha o spin do corpo; flip/shuv giram só ele)
+  ctx.save();
+  if(bodySpin){ ctx.translate(0,hipY); ctx.rotate(bodySpin); ctx.translate(0,-hipY); }
+  ctx.translate(2,4); ctx.rotate(boardSpin); ctx.scale(1, Math.cos(boardFlip));
+  sketchLine(-11,0,11,0,col,2.5); sketchCircle(-7,4,2.4,col,1.5); sketchCircle(7,4,2.4,col,1.5);
+  ctx.restore();
+  ctx.restore();
+}
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>

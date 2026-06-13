@@ -42,11 +42,13 @@ Abra [`index.html`](index.html) no navegador (ou jogue online no link acima) e a
 - **Obstáculos** — patinete (desvie pulando), rampa/quarter-pipe (arremessa alto), escadaria (pule o vão).
 - **Estrela ✨** — reduz a gravidade por 5s, permitindo sequências enormes de manobras.
 - **Barra de especial** (2 níveis) — 2000 pts solta o **900** (super ollie); 4000 pts solta o **1080 + Kickflip**.
-- **4 fases**:
+- **Modos** (menu inicial): **Campanha**, **Skate Park** (livre, sem missões) e **Game of S.K.A.T.E.** (duelo de manobras contra a CPU).
+- **Campanha — 7 fases**:
   1. **A Base** — tutorial de ollies, giros e combos.
   2. **A Cidade** — missões mais duras; em certo ponto a skin evolui (óculos, touca, calça, tattoos).
-  3. **Modo Luta** ⚔️ — você vira Mestre e cai na porrada contra um playboy *bad boy*; lutam com chutes e socos usando os skates (← → mover · `A` chute · `B` soco · `↓` defender).
-  4. **Street League** 🏆 — vira profissional e disputa a liga; complete as missões e vire **campeão**.
+  3. **Modo Luta** ⚔️ — você vira Mestre e cai na porrada contra um playboy *bad boy* (← → mover · `A` chute · `B` soco · `↓` defender · `S` giro especial).
+  4. **Street League** 🏆 — vira profissional e disputa a liga.
+  5-7. **Era da Lenda** 🏅 — ranks **Master → Grand Master → Legend**, andando de **skate velho** (pula mais baixo, trucks soltos), com estética de caderno **envelhecido** (sépia, manchas de café), skin de **veterano** (grisalho + barba) e picos temáticos (bowl, mega ramp, linha lendária). Antes da Lenda, **revanche de S.K.A.T.E. contra o Bad Boy**. Zere para virar **Lenda do Skate**.
 
 ## VFX (estilo caderno)
 
