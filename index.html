@@ -30,11 +30,10 @@
 <div id="stage">
   <canvas id="game" width="960" height="500"></canvas>
   <div id="hint">
-    <kbd>Espaço</kbd> Ollie (segure p/ subir) · <kbd>↓</kbd> Manual · pule em trilhos p/ <b>Grind</b> (segure <kbd>↑</kbd> = Crooked)<br>
-    Desvie do <b>patinete</b> · <b>rampa</b> 🚀 p/ voar · pule a <b>escadaria</b> · pegue a <b>estrela</b> ✨ (gravidade baixa)<br>
-    No ar: <kbd>→</kbd>+<kbd>A</kbd> Kickflip · <kbd>→</kbd>+<kbd>B</kbd> 180 · <kbd>↑</kbd>+<kbd>B</kbd> 360 ·
-    <kbd>↑</kbd>+<kbd>A</kbd> 540 · <kbd>←</kbd>+<kbd>A</kbd> Shuv · <kbd>↓</kbd>+<kbd>B</kbd> Front Flip · <kbd>→</kbd>+<kbd>K</kbd> Impossible · <kbd>B</kbd> (no ar) Indy Grab · <kbd>B</kbd> (no grind) Board Slide ·
-    <kbd>S</kbd> Especial 900 · <kbd>M</kbd> som · <kbd>P</kbd> pause · <kbd>R</kbd> reset
+    Direção: <b>setas</b> · <kbd>Espaço</kbd> Ollie · <kbd>↓</kbd> Manual · <kbd>D</kbd> (ar) One Foot · grind: <kbd>↑</kbd> Crooked · <kbd>A</kbd> Board Slide · <kbd>D</kbd> Smith<br>
+    No ar: <kbd>→</kbd>+<kbd>D</kbd> Kickflip · <kbd>→</kbd>+<kbd>A</kbd> 180 · <kbd>↑</kbd>+<kbd>A</kbd> 360 · <kbd>↑</kbd>+<kbd>D</kbd> 540 ·
+    <kbd>←</kbd>+<kbd>D</kbd> Shuv · <kbd>↓</kbd>+<kbd>A</kbd> Front Flip · <kbd>←</kbd>+<kbd>A</kbd> Big Spin · <kbd>→</kbd>+<kbd>W</kbd> Impossible · <kbd>←</kbd>+<kbd>W</kbd> 360 Kickflip · <kbd>↑</kbd>+<kbd>W</kbd> Hardflip · <kbd>A</kbd> (ar) Indy Grab<br>
+    Solo: <kbd>D</kbd> No Comply (<kbd>←</kbd>/<kbd>→</kbd>+<kbd>D</kbd> = 180) · <kbd>A</kbd> Boneless · <kbd>S</kbd> Especial &nbsp;·&nbsp; Luta: <kbd>D</kbd> chute · <kbd>A</kbd> soco · <kbd>↓</kbd> defesa · <kbd>S</kbd> giro · <kbd>W</kbd> Hadouken &nbsp;·&nbsp; <kbd>M</kbd> som · <kbd>P</kbd> pausa · <kbd>R</kbd> reset
   </div>
 </div>
 
@@ -112,7 +111,7 @@ function sfxPage(){ noiseBurst(0.34,1600,0.2,'highpass'); }
 const keys = {};
 addEventListener('keydown', e=>{
   initAudio();
-  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyA','KeyB','KeyK','KeyS','KeyP','KeyR','KeyM'].includes(e.code)) e.preventDefault();
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','KeyP','KeyR','KeyM'].includes(e.code)) e.preventDefault();
   if(!keys[e.code]) keys['_p_'+e.code]=true;
   keys[e.code]=true;
   if(e.code==='KeyR') reset();
@@ -142,11 +141,21 @@ function checkCheat(e){
 addEventListener('keyup', e=> keys[e.code]=false);
 function pressed(code){ return keys['_p_'+code]; }
 function clearPressed(){ for(const k in keys) if(k.startsWith('_p_')) keys[k]=false; }
+// direção = SETAS; botões de manobra = WASD (D flip, A spin, W avançada, S especial)
+function kU(){ return keys['ArrowUp']; }
+function kD(){ return keys['ArrowDown']; }
+function kL(){ return keys['ArrowLeft']; }
+function kR(){ return keys['ArrowRight']; }
+function pU(){ return pressed('ArrowUp'); }
+function pD(){ return pressed('ArrowDown'); }
+function pL(){ return pressed('ArrowLeft'); }
+function pR(){ return pressed('ArrowRight'); }
 
 // ============================================================
 //  Sketch helpers
 // ============================================================
 let inkJ=0.9;                       // amplitude do "tremor" do traço (maior na Era da Lenda)
+let trickVibe=0;                    // vibração extra do traço em manobras de estilo (ex.: Big Spin)
 function jitter(){ return (Math.random()*2-1)*inkJ; }
 function aged(){ return state.level>=5; }   // Era da Lenda = estética envelhecida + skate velho
 function sketchLine(x1,y1,x2,y2,col='#2a2a2a',wd=2){
@@ -196,7 +205,7 @@ const player = {
   bodyAngle:0, capAngle:0, manualTilt:0,
   boardAngle:0, boardFlip:0, boardPop:0,   // rotação + "pop" vertical SÓ do skate
   trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false,
-  coyote:0, jumpBuf:0, veteran:false, freestyle:null, grab:false, boardslide:false, lastTrick:null
+  coyote:0, jumpBuf:0, veteran:false, freestyle:null, grab:false, boardslide:false, lastTrick:null, bodyYaw:0, smith:false, oneFoot:false
 };
 function canFreestyle(){ return state.level>=5 || state.freeRun; }   // No Comply / Boneless: Era da Lenda + Skate Park
 let state, trail, swirls, dust, comboMsg, scorePop, rails, obstacles, railTimer, bail, pageTurn, fight, sk;
@@ -208,11 +217,13 @@ const TRICKS = {
   'kickflip': { total:Math.PI*2,  label:'KICKFLIP', pts:250, dir: 1, kind:'flip',    spd:0.26 },
   '360':      { total:Math.PI*2,  label:'360 SPIN', pts:300, dir: 1, kind:'spin',    spd:0.17 },
   'frontflip':  { total:Math.PI*2,  label:'FRONT FLIP',  pts:350, dir: 1, kind:'frontflip', spd:0.19 },
+  'bigspin':  { total:Math.PI*2,  label:'BIG SPIN',  pts:400, dir: 1, kind:'bigspin', spd:0.2 },   // shape 360 + corpo 180
   '540':      { total:Math.PI*3,  label:'540',      pts:550, dir: 1, kind:'spin',    spd:0.18 },
   '900':      { total:Math.PI*5,  label:'900!',     pts:1000,dir: 1, kind:'spin',    spd:0.30 },
   '1080flip': { total:Math.PI*6,  label:'1080 KICKFLIP!', pts:2000, dir:1, kind:'spinflip', spd:0.32 },
   'treflip':  { total:Math.PI*2,  label:'360 KICKFLIP', pts:480, dir:1, kind:'treflip', spd:0.23 },  // 360 shuv + kickflip
   'impossible':{ total:Math.PI*2, label:'IMPOSSIBLE', pts:300, dir:1, kind:'impossible', spd:0.24 }, // shape enrola (antigo visual do kickflip)
+  'hardflip': { total:Math.PI*2, label:'HARDFLIP', pts:520, dir:1, kind:'hardflip', spd:0.22 },     // kickflip 360 + FS shuv 180 + tilt 45°
 };
 
 function buildMissions(){
@@ -220,9 +231,9 @@ function buildMissions(){
     { title:'Missão 1 — Domine a Base', task:'Aterrisse 3 Ollies limpos',
       hint:'Espaço (segure p/ subir mais)', need:3, prog:0, done:false, type:'ollie' },
     { title:'Missão 2 — O Giro', task:'Complete um giro de 180°',
-      hint:'No ar:  →  +  B', need:1, prog:0, done:false, type:'spin180' },
+      hint:'No ar:  → + A', need:1, prog:0, done:false, type:'spin180' },
     { title:'Missão 3 — O Mestre', task:'Acerte um 360° (ou Kickflip)',
-      hint:'No ar:  ↑+B (360)  ou  →+A (flip)', need:1, prog:0, done:false, type:'spin360' },
+      hint:'No ar:  ↑+A (360)  ou  →+D (flip)', need:1, prog:0, done:false, type:'spin360' },
     { title:'Missão 4 — Encadeie', task:'Faça um combo de 4 elementos',
       hint:'ligue trick + grind + manual sem cair', need:1, prog:0, done:false, type:'mult', target:4 },
   ];
@@ -244,7 +255,7 @@ function reset(){
   state={ phase:'start', paused:false, won:false, over:false, scroll:0, speed:3.4, shake:0, lowGrav:0, special:0, level:1, mode:'skate', scoreBase:0, menu:0, freeRun:false };
   fight=null; sk=null;
   Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
-    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false, coyote:0, jumpBuf:0, veteran:false, freestyle:null });
+    bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, upgraded:false, special900grind:false, coyote:0, jumpBuf:0, veteran:false, freestyle:null, grab:false, boardslide:false, bodyYaw:0 });
   trail=[]; swirls=[]; dust=[]; comboMsg=null; scorePop=[];
   rails=[]; obstacles=[]; railTimer=120; bail=null; pageTurn=null;
   missions=buildMissions(); curMission=0; totalScore=0;
@@ -301,8 +312,8 @@ function hitMissionFlow(flow){
   if(flow>=m.target){ m.prog=m.need; m.done=true; nextMission(); }
 }
 function advanceMission(name){
-  if(['180','shuv','360','kickflip','frontflip','540','900','1080flip','treflip','impossible'].includes(name)) hitMission('spin180',1);
-  if(['360','kickflip','frontflip','540','900','1080flip','treflip'].includes(name)) hitMission('spin360',1);
+  if(['180','shuv','360','kickflip','frontflip','bigspin','540','900','1080flip','treflip','impossible','hardflip'].includes(name)) hitMission('spin180',1);
+  if(['360','kickflip','frontflip','bigspin','540','900','1080flip','treflip','hardflip'].includes(name)) hitMission('spin360',1);
   if(['900','1080flip'].includes(name)) hitMission('special',1);
 }
 function landOllie(){
@@ -323,7 +334,7 @@ function buildMissions4(){
 function buildMissionsRank(lv){
   if(lv===5) return [
     { title:'Master — Aquecimento', task:'Marque 4000 pts no pico', hint:'mande combos no bowl', need:1, prog:0, done:false, type:'score', target:4000 },
-    { title:'Master — Old School', task:'Mande 3 manobras de solo', hint:'A = No Comply · B = Boneless (no chão)', need:3, prog:0, done:false, type:'freestyle' },
+    { title:'Master — Old School', task:'Mande 3 manobras de solo', hint:'D = No Comply · A = Boneless (no chão)', need:3, prog:0, done:false, type:'freestyle' },
     { title:'Master — Flow', task:'Feche uma linha com FLOW x3', hint:'emende grind + manual + no comply/boneless', need:1, prog:0, done:false, type:'flow', target:3 },
   ];
   if(lv===6) return [
@@ -400,19 +411,28 @@ function hitScore(){
 function glowTrail(){ for(const p of trail) p.glow=true; }
 function showCombo(text){ comboMsg={ text, life:90 }; }
 function popScore(text,kind){ scorePop.push({ text, x:player.x, y:player.y-40, life:60, kind }); }
-function spawnSwirl(){
+function spawnSwirl(big){
   const cx=player.x, cy=player.y-player.h/2;
-  swirls.push({ x:cx+jitter()*40, y:cy+jitter()*40, r:6+Math.random()*10, a:Math.random()*6, life:35, max:35 });
+  const r = big ? 14+Math.random()*18 : 6+Math.random()*10;
+  swirls.push({ x:cx+jitter()*(big?60:40), y:cy+jitter()*(big?55:40), r, a:Math.random()*6, life:big?42:35, max:big?42:35 });
 }
-function spawnDust(){
-  for(let i=0;i<7;i++)
-    dust.push({ x:player.x-10+Math.random()*20, y:player.y+10, vx:jitter()*2.2, vy:-Math.random()*2.4, life:26, max:26, col:'#777' });
+function spawnDust(heavy){    // borrão de grafite (heavy = aterrissagem pesada do Hardflip)
+  const n = heavy?16:7;
+  for(let i=0;i<n;i++)
+    dust.push({ x:player.x-10+Math.random()*20, y:player.y+10, vx:jitter()*(heavy?3.4:2.2), vy:-Math.random()*(heavy?3.6:2.4), life:heavy?34:26, max:heavy?34:26, col:'#777' });
 }
 function spawnSpark(){
   dust.push({ x:player.x-14, y:player.y+8, vx:-3-Math.random()*2.5, vy:-Math.random()*2, life:20, max:20, col:'#999' });
 }
 function spawnSlideSpark(){   // board slide: faíscas curtas espalhando lateralmente
   dust.push({ x:player.x+(Math.random()*30-15), y:player.y+8, vx:(Math.random()*2-1)*4.5, vy:-Math.random()*1.2, life:16, max:16, col:'#999' });
+}
+function spawnSmithSpark(){   // smith grind: riscos verticais de atrito no truck traseiro
+  dust.push({ x:player.x+10+(Math.random()*8-4), y:player.y+8, vx:(Math.random()*2-1)*1.2, vy:-1-Math.random()*3, life:14, max:14, col:'#888' });
+}
+function spawnTangle(){       // hardflip: emaranhado de traços cruzados no centro
+  const cx=player.x, cy=player.y-player.h/2;
+  for(let i=0;i<2;i++){ const a=Math.random()*Math.PI; dust.push({ x:cx+jitter()*14, y:cy+jitter()*14, vx:Math.cos(a)*2.4, vy:Math.sin(a)*2.4, life:14, max:14, col:'#555' }); }
 }
 
 // ============================================================
@@ -422,19 +442,22 @@ function tryTrick(){
   if(player.trick) return;
   let t=null;
   const treOk = (state.level>=4 || state.freeRun);   // 360 Kickflip: a partir da Street League
-  if      (keys['ArrowLeft']  && keys['KeyK'] && treOk) t='treflip';
-  else if (keys['ArrowRight'] && keys['KeyK']) t='impossible';
-  else if (keys['ArrowUp']    && keys['KeyA']) t='540';
-  else if (keys['ArrowUp']    && keys['KeyB']) t='360';
-  else if (keys['ArrowRight'] && keys['KeyA']) t='kickflip';
-  else if (keys['ArrowRight'] && keys['KeyB']) t='180';
-  else if (keys['ArrowLeft']  && keys['KeyA']) t='shuv';
-  else if (keys['ArrowDown']  && keys['KeyB']) t='frontflip';
+  if      (kL() && keys['KeyW'] && treOk) t='treflip';
+  else if (kR() && keys['KeyW']) t='impossible';
+  else if (kU() && keys['KeyW']) t='hardflip';
+  else if (kU() && keys['KeyD']) t='540';
+  else if (kU() && keys['KeyA']) t='360';
+  else if (kR() && keys['KeyD']) t='kickflip';
+  else if (kR() && keys['KeyA']) t='180';
+  else if (kL() && keys['KeyD']) t='shuv';
+  else if (kD() && keys['KeyA']) t='frontflip';
+  else if (kL() && keys['KeyA']) t='bigspin';
   if(t){
     const d=TRICKS[t];
     player.trick={ name:t, total:d.total, rot:0, dir:d.dir, kind:d.kind };
     showCombo(d.label+'…'); sfxWhoosh();
     if(t==='treflip'){ for(let i=0;i<5;i++) spawnSwirl(); }   // espiral de grafite no "pop"
+    if(t==='bigspin'){ trickVibe=1.4; for(let i=0;i<5;i++) spawnSwirl(true); }   // pop "vibra" + espiral grande
   }
 }
 
@@ -535,10 +558,10 @@ function spawnStairs(){ const w=92+Math.random()*36; obstacles.push({type:'stair
 function spawnStar(){ obstacles.push({type:'star', x:state.scroll+W+90, y:GROUND-(95+Math.random()*55), w:30, got:false, a:0}); spaceAfter(40); }
 
 function startGrind(rl){
-  player.grinding=rl; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0; player.crooked=false; player.boardslide=false; player.grab=false;
+  player.grinding=rl; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0; player.crooked=false; player.boardslide=false; player.grab=false; player.smith=false; player.oneFoot=false;
   chainAddFlow('GRIND',40); showCombo('TAIL GRIND!'); hitMission('grind',1);
 }
-function endGrind(){ player.grinding=null; player.onGround=false; player.crooked=false; player.boardslide=false; player.boardAngle=0; player.coyote=6; }  // coyote time ao sair do trilho
+function endGrind(){ player.grinding=null; player.onGround=false; player.crooked=false; player.boardslide=false; player.smith=false; player.boardAngle=0; player.coyote=6; }  // coyote time ao sair do trilho
 // pulo unificado; boost deixa o "ollie out" do trilho mais alto
 function ollie(boost){
   player.vy = JUMP_V*(aged()?0.9:1) - (boost||0);   // skate velho pula mais baixo (E2)
@@ -546,12 +569,12 @@ function ollie(boost){
   player.manual=false; player.grinding=null; player.coyote=0; player.jumpBuf=0;
   sfxOllie();
 }
-// FREESTYLE old-school (Master+): No Comply e Boneless
-function doNoComply(){
+// FREESTYLE old-school (Master+): No Comply (com variante 180) e Boneless
+function doNoComply(spin){
   player.onGround=false; player.holdJump=false; player.manual=false; player.didTrick=true;
-  player.vy=-7.5;                                   // pop baixinho, rápido (mantém o "flow")
-  player.freestyle={ name:'nocomply', t:0, dur:26 }; player.lastTrick='nocomply';
-  chainAddFlow('NO COMPLY',120); showCombo('NO COMPLY!'); sfxOllie(); hitMission('freestyle',1);
+  player.vy = spin?-9:-7.5;                          // pop baixinho (180 segura um tico mais)
+  player.freestyle={ name:'nocomply', t:0, dur: spin?34:26, spin180:!!spin }; player.lastTrick='nocomply';
+  chainAddFlow(spin?'NO COMPLY 180':'NO COMPLY', spin?180:120); showCombo(spin?'NO COMPLY 180!':'NO COMPLY!'); sfxOllie(); hitMission('freestyle',1);
 }
 function doBoneless(){
   player.onGround=false; player.holdJump=false; player.manual=false; player.didTrick=true;
@@ -626,13 +649,13 @@ function finalizeTrick(){
   else chainAdd(d.label,d.pts);
   advanceMission(t.name); glowTrail();
   player.didTrick=true; player.lastTrick=t.name;
-  player.trick=null; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0;
+  player.trick=null; player.bodyAngle=0; player.boardAngle=0; player.boardFlip=0; player.boardPop=0; player.bodyYaw=0;
 }
 function resolveLanding(rail){
   const wasAir=!player.onGround;
   player.vy=0; player.onGround=true; player.holdJump=false; player.coyote=0;
   if(wasAir){
-    spawnDust(); state.shake=6; sfxLand();
+    spawnDust(player.didTrick && player.lastTrick==='hardflip'); state.shake=6; sfxLand();
     if(player.trick){                 // ainda girando ao tocar o chão => caiu
       player.trick=null; startBail(); return;
     }else if(player.didTrick){
@@ -641,8 +664,9 @@ function resolveLanding(rail){
       landOllie();                    // pulo simples (nenhuma manobra creditada)
     }
     player.didTrick=false;
-    if(player.freestyle){ player.freestyle=null; player.boardAngle=0; player.boardPop=0; }   // freestyle pousou
+    if(player.freestyle){ player.freestyle=null; player.boardAngle=0; player.boardPop=0; player.bodyYaw=0; }   // freestyle pousou
     if(player.grab){ player.grab=false; player.boardPop=0; }                                  // largou o grab ao pousar
+    player.oneFoot=false;
   }
   // especial 900 -> grind: ao pousar, desliza (usa o corrimão se houver, senão um powerslide no chão)
   if(wasAir && player.special900grind){
@@ -657,8 +681,8 @@ function resolveLanding(rail){
 //  Bail -> apaga + redesenha
 // ============================================================
 function startBail(){
-  bail={ phase:'erase', t:0, dur:40 };
-  player.special900grind=false; player.freestyle=null; player.grab=false; player.boardslide=false;
+  bail={ phase:'erase', t:0, dur: aged()?54:40 };          // caderno velho: borracha mais lenta/trêmula
+  player.special900grind=false; player.freestyle=null; player.grab=false; player.boardslide=false; player.smith=false; player.oneFoot=false;
   chainBreak(); showCombo('BAIL! — combo perdido'); state.shake=12; sfxBail();
   if(sk) skBail();
 }
@@ -666,8 +690,8 @@ function updateBail(){
   bail.t++;
   if(bail.phase==='erase' && bail.t>=bail.dur){
     Object.assign(player,{ y:GROUND, vy:0, onGround:true, holdJump:false,
-      bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false });
-    bail={ phase:'redraw', t:0, dur:48 };
+      bodyAngle:0, capAngle:0, manualTilt:0, boardAngle:0, boardFlip:0, boardPop:0, trick:null, manual:false, grinding:null, crooked:false, didTrick:false, bodyYaw:0, grab:false, boardslide:false });
+    bail={ phase:'redraw', t:0, dur: aged()?74:48 };       // redesenho mais lento na Era da Lenda
   }else if(bail.phase==='redraw' && bail.t>=bail.dur){
     bail=null;
   }
@@ -683,8 +707,8 @@ const JUMP_V=-13.6, GRAV=0.72, GRAV_HOLD=0.34, SETTLE=16, LAUNCH_V=-18.8, SPECIA
 function update(){
   if(state.phase==='start'){
     fadeScratch(0);
-    if(pressed('ArrowUp')) state.menu=(state.menu+2)%3;
-    if(pressed('ArrowDown')) state.menu=(state.menu+1)%3;
+    if(pU()) state.menu=(state.menu+2)%3;
+    if(pD()) state.menu=(state.menu+1)%3;
     if(pressed('Space')){
       if(state.menu===0) startCampaign();
       else if(state.menu===1) enterFree();
@@ -714,17 +738,25 @@ function update(){
     if(wx < rl.x-4 || wx > rl.x+rl.w+4){ endGrind(); }   // saiu da ponta -> coyote time
     else{
       player.y=railYAt(rl,wx); player.vy=0;
-      const slide = !!keys['KeyB'];
+      const slide = !!keys['KeyA'];
+      const smith = !slide && !!keys['KeyD'];
       player.boardslide = slide;
-      player.crooked = !slide && !!keys['ArrowUp'];
+      player.smith = smith;
+      player.crooked = !slide && !smith && !!kU();
       if(slide){
-        if(pressed('KeyB')){ showCombo('BOARD SLIDE!'); if(chain.items.length) chain.items[chain.items.length-1].label='BOARD SLIDE'; }  // mostra na composição
+        if(pressed('KeyA')){ showCombo('BOARD SLIDE!'); if(chain.items.length) chain.items[chain.items.length-1].label='BOARD SLIDE'; }  // mostra na composição
         rl.wear = Math.min(1, (rl.wear||0)+0.012);                  // atrito desgasta o corrimão
         chainTick(0.9);
         if(Math.random()<0.85) spawnSlideSpark();                   // faíscas laterais
         player.boardAngle += (0-player.boardAngle)*0.25;            // shape reto; o perpendicular é feito no desenho
+      }else if(smith){
+        if(pressed('KeyD')){ showCombo('SMITH GRIND!'); if(chain.items.length) chain.items[chain.items.length-1].label='SMITH'; }
+        player.boardAngle += (-0.62-player.boardAngle)*0.25;        // nose pra baixo ~35° (só truck traseiro)
+        trickVibe=Math.max(trickVibe,0.4);                          // equilíbrio tenso -> traço treme mais
+        chainTick(0.95);
+        if(Math.random()<0.7) spawnSmithSpark();                    // riscos verticais de atrito
       }else{
-        if(pressed('ArrowUp')) showCombo('CROOKED GRIND!');
+        if(pU()) showCombo('CROOKED GRIND!');
         player.boardAngle += ((player.crooked?0.42:0)-player.boardAngle)*0.25;
         chainTick(player.crooked?1.0:0.7);
         if(Math.random() < (player.crooked?0.85:0.6)) spawnSpark();
@@ -747,21 +779,21 @@ function update(){
   if(player.jumpBuf>0) player.jumpBuf--;
   if(player.coyote>0) player.coyote--;
 
-  // Freestyle de solo (Master+ / Skate Park): A = No Comply, B = Boneless
+  // Freestyle de solo (Master+ / Skate Park): D = No Comply, A = Boneless
   if(canFreestyle() && player.onGround && !player.grinding && !player.trick && !player.freestyle){
-    if(pressed('KeyA')) doNoComply();
-    else if(pressed('KeyB')) doBoneless();
+    if(pressed('KeyD')) doNoComply(kL()||kR());     // com seta ←/→ = No Comply 180
+    else if(pressed('KeyA')) doBoneless();
   }
 
   // Manual
-  if(player.onGround && !player.grinding && keys['ArrowDown']){
+  if(player.onGround && !player.grinding && kD()){
     if(!player.manual){ player.manual=true; chainAddFlow('MANUAL',25); showCombo('MANUAL!'); }
     chainTick(0.45);
   }else{ player.manual=false; }
   // tilt: manual (tail) e tail grind usam o mesmo efeito; no grind soma a inclinação do corrimão
   let tiltTarget=0;
   if(player.manual) tiltTarget=-0.38;
-  else if(player.grinding){ const rl=player.grinding; tiltTarget=(player.boardslide?-0.05 : (player.crooked?-0.10:-0.30)) + Math.atan2(rl.y2-rl.y1, rl.w); }
+  else if(player.grinding){ const rl=player.grinding; tiltTarget=(player.boardslide?-0.05 : player.smith?0 : (player.crooked?-0.10:-0.30)) + Math.atan2(rl.y2-rl.y1, rl.w); }
   player.manualTilt += (tiltTarget-player.manualTilt)*0.2;
 
   // Tricks
@@ -782,8 +814,23 @@ function update(){
       else if(t.kind==='flip'){ player.boardFlip=t.rot; }                                      // kickflip: flip no eixo longo (scaleY)
       else if(t.kind==='impossible'){ player.boardAngle=t.dir*t.rot; }                          // impossible: shape enrola end-over-end (giro no plano)
       else if(t.kind==='frontflip'){ player.bodyAngle=t.dir*t.rot; player.boardAngle=t.dir*t.rot; }
+      else if(t.kind==='bigspin'){                                              // skate 360 (gira) + corpo 180 HORIZONTAL (yaw)
+        player.boardAngle=t.dir*t.rot;
+        const lead=0.5, bp=Math.max(0,(t.rot-lead)/(t.total-lead));
+        player.bodyYaw=Math.PI*Math.min(1,bp);                                  // vira de costas (não é mortal)
+        trickVibe=Math.max(trickVibe,0.5);
+        if(Math.random()<0.6) spawnSwirl(true);                                 // espiral maior e rabiscada
+      }
       else if(t.kind==='spinflip'){ player.bodyAngle=t.dir*t.rot; player.boardFlip=t.rot; }  // 1080 + kickflip
       else if(t.kind==='treflip'){ player.boardAngle=-t.dir*t.rot; player.boardFlip=t.rot; }  // 360 kickflip: shape (shuv invertido + flip)
+      else if(t.kind==='hardflip'){                                            // kickflip 360 + FS shuv 180 (sentido invertido) + verticaliza 45°
+        const pgr=t.rot/t.total;
+        player.boardFlip=t.rot;
+        player.boardAngle=-t.dir*t.rot*0.5 - Math.sin(pgr*Math.PI)*(Math.PI/4);
+        trickVibe=Math.max(trickVibe,0.6);
+        if(Math.random()<0.7) spawnSwirl(true);
+        spawnTangle();                                                         // emaranhado de traços (confusão)
+      }
       // "pop": o skate sobe em relação aos pés e volta (arco suave no meio da manobra)
       const popMax = (t.kind==='spin') ? 6 : 12;
       player.boardPop = Math.sin((t.rot/t.total)*Math.PI) * popMax;
@@ -791,17 +838,25 @@ function update(){
       if(t.rot<t.total && Math.random()<0.4) spawnSwirl();
       if(t.rot>=t.total) finalizeTrick();             // completou no ar -> credita e libera o próximo
     }
-    if(player.freestyle){                              // anima No Comply / Boneless (sem girar o corpo)
+    if(player.freestyle){                              // anima No Comply / Boneless
       const fs=player.freestyle, p=(fs.t++)/fs.dur;
-      if(fs.name==='nocomply'){ player.boardAngle=Math.sin(p*Math.PI)*0.55; player.boardPop=Math.sin(p*Math.PI)*8; }
+      if(fs.name==='nocomply'){
+        player.boardAngle=Math.sin(p*Math.PI)*0.55; player.boardPop=Math.sin(p*Math.PI)*8;
+        if(fs.spin180) player.bodyYaw=Math.PI*Math.min(1,p);   // gira 180 horizontal sobre o pé
+      }
       else { player.boardPop=Math.sin(p*Math.PI)*11; }
     }
     // Indy Grab: B no ar (sem seta) agarra o shape -> estilo + bônus de flow
-    const arrowHeld = keys['ArrowUp']||keys['ArrowDown']||keys['ArrowLeft']||keys['ArrowRight'];
-    if(!player.onGround && !player.trick && !player.freestyle && keys['KeyB'] && !arrowHeld){
+    const arrowHeld = kU()||kD()||kL()||kR();
+    if(!player.onGround && !player.trick && !player.freestyle && keys['KeyA'] && !arrowHeld){
       if(!player.grab){ player.grab=true; player.didTrick=true; player.lastTrick='indy'; chainAddFlow('INDY GRAB',110); showCombo('INDY GRAB!'); sfxGrab(); }
       player.boardPop = 8;                             // puxa o shape pro pé/mão
     }else if(player.grab){ player.grab=false; }
+    // Ollie One Foot: D no ar (sem seta) estende uma perna
+    if(!player.onGround && !player.trick && !player.freestyle && keys['KeyD'] && !arrowHeld){
+      if(!player.oneFoot){ player.oneFoot=true; player.didTrick=true; player.lastTrick='onefoot'; chainAddFlow('OLLIE ONE FOOT',130); showCombo('ONE FOOT!'); sfxOllie();
+        for(let i=0;i<3;i++) dust.push({ x:player.x+28+Math.random()*6, y:player.y, vx:2+Math.random()*2, vy:Math.random(), life:14, max:14, col:'#999' }); }  // rastro no pé estendido
+    }else if(player.oneFoot){ player.oneFoot=false; }
     let landedRail=null;
     if(player.vy>=0){
       const wx=player.x+state.scroll, prevY=player.y-player.vy;
@@ -1000,8 +1055,10 @@ function drawFigure(){
   sketchLine( 24,-2.5, 28,0,'#2a2a2a',2.5); sketchLine( 28,0, 24,2.5,'#2a2a2a',2.5); // tail
   sketchLine(-15,2.5,-15,7,'#2a2a2a',2); sketchLine(15,2.5,15,7,'#2a2a2a',2);         // trucks
   sketchCircle(-15,9,5,'#2a2a2a',2); sketchCircle(15,9,5,'#2a2a2a',2);                // rodas
+  if(player.smith) sketchLine(-28,0,-40,10,'#9a9a9a',1.2);                            // smith: "pescoço" do shape (linha de construção)
   ctx.restore();
   ctx.save(); ctx.rotate(player.bodyAngle);
+  if(player.bodyYaw) ctx.scale(Math.cos(player.bodyYaw),1);     // big spin: corpo vira 180° na horizontal
   sketchRect(-16,-10,32,player.h-12,'#2a2a2a',3);
   sketchLine(-16,2,-28,player.h/2-18,'#2a2a2a',2.5); sketchLine(16,2,28,player.h/2-18,'#2a2a2a',2.5);   // braços
   if(player.upgraded){
@@ -1026,8 +1083,18 @@ function drawFigure(){
     sketchLine(8,2, 2, gy2-2,'#2a2a2a',2.5);                        // braço até o meio do shape
     sketchLine(-4,gy2,4,gy2,'#2a2a2a',4); sketchLine(-3,gy2-1.5,3,gy2-1.5,'#2a2a2a',3.5);  // marca densa de pressão (grafite)
   }
+  if(player.smith){                                                 // SMITH: braços abertos p/ equilíbrio (despencado)
+    sketchLine(-13,3,-30,-3,'#2a2a2a',2.5); sketchLine(13,3,30,-1,'#2a2a2a',2.5);
+  }
+  if(player.oneFoot){                                               // OLLIE ONE FOOT: perna estendida (assimétrica) + sombra
+    sketchLine(6,player.h-22, 30, player.h/2-3,'#444',2.5);         // perna pra fora (traço mais fraco)
+    ctx.save(); ctx.globalAlpha=0.4;
+    for(let i=0;i<3;i++) sketchLine(26,player.h/2+11+i*2, 34,player.h/2+11+i*2,'#9a9a9a',1);   // sombra (hachuras)
+    ctx.restore();
+  }
   ctx.restore();
   ctx.save(); ctx.rotate(player.capAngle);
+  if(player.bodyYaw) ctx.scale(Math.cos(player.bodyYaw),1);     // big spin: cabeça acompanha o giro horizontal
   sketchCircle(0,-22,12,'#2a2a2a',3);
   if(player.veteran){
     // VETERANO: cabelo grisalho espetado + óculos + barba
@@ -1054,6 +1121,12 @@ function drawFigure(){
     ctx.fillStyle='#2a2a2a'; ctx.beginPath(); ctx.arc(-4,-22,1.6,0,Math.PI*2); ctx.arc(4,-22,1.6,0,Math.PI*2); ctx.fill();
   }
   ctx.restore();
+  // No Comply 180: arco tracejado do pivô + marca de "força" sob o pé
+  if(player.freestyle && player.freestyle.name==='nocomply' && player.freestyle.spin180){
+    const fy=player.h/2+10, fx=6;
+    for(let a=0.2; a<Math.PI; a+=0.55){ const x1=fx+Math.cos(a)*18, x2=fx+Math.cos(a+0.32)*18, y1=fy-Math.sin(a)*6, y2=fy-Math.sin(a+0.32)*6; sketchLine(x1,y1,x2,y2,'#6a6a6a',1.5); }
+    sketchCircle(fx,fy,3,'#2a2a2a',2); sketchCircle(fx,fy,1.4,'#2a2a2a',1.5);
+  }
 }
 function drawPlayer(){
   const cx=player.x, cy=player.y-player.h/2;
@@ -1094,10 +1167,10 @@ function drawHUD(){
   }
   if(canFreestyle()){
     ctx.fillStyle='#7a6a3a'; ctx.font='13px "Comic Sans MS",cursive'; ctx.textAlign='left';
-    ctx.fillText('old-school:  A = No Comply   ·   B = Boneless   ·   ←+K = 360 Kickflip   ·   →+K = Impossible', 90, H-14);
+    ctx.fillText('old-school:  D = No Comply (←/→ = 180)   ·   A = Boneless   ·   ↑+W = Hardflip   ·   ←+W = 360 Kickflip', 90, H-14);
   }else if(state.level>=4 || state.freeRun){
     ctx.fillStyle='#7a6a3a'; ctx.font='13px "Comic Sans MS",cursive'; ctx.textAlign='left';
-    ctx.fillText('novo:  ←+K = 360 Kickflip   ·   →+K = Impossible', 90, H-14);
+    ctx.fillText('novo:  ←+W = 360 Kickflip   ·   →+W = Impossible', 90, H-14);
   }
   ctx.textAlign='right'; ctx.fillStyle='#2a2a2a'; ctx.font='22px "Comic Sans MS",cursive';
   ctx.fillText('Score '+totalScore, W-24, 38);
@@ -1318,7 +1391,8 @@ function drawPause(){
 }
 
 function draw(){
-  inkJ = aged()?1.7:0.9;                 // traço mais trêmulo na Era da Lenda (E3)
+  inkJ = (aged()?1.7:0.9) + Math.min(trickVibe,1.6);    // traço mais trêmulo na Era da Lenda (E3) + vibe de manobra
+  if(trickVibe>0.01) trickVibe*=0.88; else trickVibe=0;
   if(state.mode==='fight'){
     drawFightScene(); drawFightHUD();
   }else{
@@ -1349,9 +1423,43 @@ function initFight(){
 const FURY_MAX=100;
 function makeFighter(x,facing,isPlayer){
   return { x, vx:0, hp:100, maxhp:100, facing, isPlayer, st:'idle', atk:null, cd:0, hitFlash:0, stun:0, blocking:false, aiTimer:30,
-    combo:0, comboWindow:0, fury:0, invuln:false };
+    combo:0, comboWindow:0, fury:0, invuln:false, cdHad:0, throwT:0 };
 }
 function addFury(fr,amt){ fr.fury=Math.min(FURY_MAX, fr.fury+amt); }
+// HADOUKEN de skate: arremessa uma prancha girando
+function throwHadouken(fr, opp){
+  fr.cdHad=90; fr.throwT=14; fr.st='throw';
+  if(!fight.projs) fight.projs=[];
+  fight.projs.push({ x: fr.x + fr.facing*30, y: GROUND+player.h/2-30, vx: fr.facing*8, dir:fr.facing, owner:fr, dmg:9, spin:0, life:160 });
+  state.shake=Math.max(state.shake,5);
+  sfxWhoosh(); if(fr.isPlayer) sfxSpecial();
+}
+function updateProjectiles(){
+  if(!fight.projs) return;
+  const y=fight.you, f=fight.foe;
+  for(const p of fight.projs){
+    p.x+=p.vx; p.spin+=0.5; p.life--;
+    const target = (p.owner===y)? f : y;
+    if(!p.hit && Math.abs(p.x-target.x)<28 && !target.invuln){
+      p.hit=true; p.life=0;
+      applyHit(target, p.dmg, p.dir*7, false);
+      showFightMsg(p.owner===y?'HADOUKEN! 🛹':'tomou o skatão!', 55);
+    }
+  }
+  fight.projs=fight.projs.filter(p=> p.life>0 && p.x>ARENA_L-60 && p.x<ARENA_R+60);
+}
+function drawProjectiles(){
+  if(!fight.projs) return;
+  for(const p of fight.projs){
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.spin);
+    // linhas de ação atrás
+    ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=1.5;
+    sketchLine(-p.dir*18,-3,-p.dir*30,-3,'#888',1.5); sketchLine(-p.dir*18,3,-p.dir*30,3,'#888',1.5);
+    // prancha girando
+    sketchLine(-14,0,14,0,'#2a2a2a',3); sketchCircle(-9,5,2.6,'#2a2a2a',1.5); sketchCircle(9,5,2.6,'#2a2a2a',1.5);
+    ctx.restore();
+  }
+}
 function showFightMsg(text,t){ if(fight){ fight.msg=text; fight.msgT=t||60; } }
 function updateFight(){
   const y=fight.you, f=fight.foe;
@@ -1372,29 +1480,34 @@ function updateFight(){
   }
   controlPlayer(y,f); aiFighter(f,y);
   stepFighter(y,f); stepFighter(f,y);
+  updateProjectiles();
 
   if(f.hp<=0){ fight.result='win'; fight.outro=160; fight.msg='K.O.! VOCÊ VENCEU!'; fight.msgT=160; sfxMission(); state.shake=10; }
   else if(y.hp<=0){ fight.result='lose'; fight.outro=160; fight.msg='VOCÊ APANHOU...'; fight.msgT=160; sfxBail(); }
 }
 function controlPlayer(y,f){
   y.facing=(f.x>=y.x)?1:-1;
-  y.blocking = !!keys['ArrowDown'] && !y.atk && y.stun<=0;
+  y.blocking = !!kD() && !y.atk && y.stun<=0;
   y.vx=0;
+  if(y.cdHad>0) y.cdHad--;
   if(!y.atk && !y.blocking && y.stun<=0){
-    if(keys['ArrowLeft']) y.vx-=3;
-    if(keys['ArrowRight']) y.vx+=3;
-    if(y.fury>=FURY_MAX && pressed('KeyS')){ startSpin(y); }
+    if(kL()) y.vx-=3;
+    if(kR()) y.vx+=3;
+    if(y.fury>=FURY_MAX && pressed('KeyS')){ startSpin(y); }                 // especial: giro de fúria
+    else if(pressed('KeyW') && y.cdHad<=0){ throwHadouken(y, f); }           // HADOUKEN de skate
     else if(y.cd<=0){
-      if(pressed('KeyA')) startAttack(y,'kick');
-      else if(pressed('KeyB')) startAttack(y,'punch');
+      if(pressed('KeyD')) startAttack(y,'kick');
+      else if(pressed('KeyA')) startAttack(y,'punch');
     }
   }
 }
 function aiFighter(f,y){
   f.facing=(y.x>=f.x)?1:-1; f.vx=0; f.blocking=false;
   if(f.atk||f.stun>0) return;
+  if(f.cdHad>0) f.cdHad--;
   const dist=Math.abs(f.x-y.x); f.aiTimer--;
   if(f.fury>=FURY_MAX && dist<92 && Math.random()<0.06){ startSpin(f); return; }   // giro especial
+  if(dist>150 && f.cdHad<=0 && Math.random()<0.05){ throwHadouken(f, y); return; } // hadouken à distância
   if(dist>92){ f.vx=(y.x>f.x?1:-1)*2.4; }
   else if(dist<52){ f.vx=(y.x>f.x?-1:1)*1.8; }
   else if(f.comboWindow>0 && f.cd<=0 && Math.random()<0.55){                       // encadeia combo
@@ -1455,8 +1568,9 @@ function stepFighter(fr,opp){
     }
   }else{
     if(fr.cd>0) fr.cd--;
+    if(fr.throwT>0) fr.throwT--;
     if(fr.comboWindow>0){ fr.comboWindow--; if(fr.comboWindow===0) fr.combo=0; }
-    fr.st = fr.stun>0?'hit' : (fr.blocking?'block' : (Math.abs(fr.vx)>0.1?'walk':'idle'));
+    fr.st = fr.stun>0?'hit' : (fr.throwT>0?'throw' : (fr.blocking?'block' : (Math.abs(fr.vx)>0.1?'walk':'idle')));
   }
 }
 function applyHit(opp,dmg,kb,finisher){
@@ -1475,7 +1589,7 @@ function drawFightScene(){
   const gy=GROUND+player.h/2+6;
   sketchLine(0,gy,W,gy,'#2a2a2a',3);
   for(let x=0;x<W;x+=70) sketchLine(x,gy+16,x+26,gy+16,'#6a6a6a',2);
-  if(fight){ drawFighter(fight.foe); drawFighter(fight.you); }
+  if(fight){ drawFighter(fight.foe); drawFighter(fight.you); drawProjectiles(); }
   ctx.restore();
 }
 function drawCityBackdrop(){
@@ -1504,6 +1618,9 @@ function drawFighter(f){
     sketchLine(lean*0.35,shoY+6, 30*e+10, shoY+10, col,2.5);
     sketchCircle(30*e+12, shoY+10, 3, col,2);
     sketchLine(lean*0.35,shoY+6, -10, hipY-6, col,2.5);
+  }else if(f.st==='throw'){                              // HADOUKEN: braços empurram pra frente
+    sketchLine(lean*0.35,shoY+6, 24, shoY+4, col,2.5);
+    sketchLine(lean*0.35,shoY+10, 22, shoY+14, col,2.5);
   }else if(f.st==='block'){
     sketchLine(lean*0.35,shoY+6, 14, shoY-2, col,2.5);
     sketchLine(lean*0.35,shoY+6, 16, shoY+12, col,2.5);
@@ -1558,7 +1675,7 @@ function drawFightHUD(){
   }
   // dica + aviso de fúria pronta
   ctx.fillStyle='#777'; ctx.font='14px "Comic Sans MS",cursive';
-  ctx.fillText('← → mover  ·  A chute  ·  B soco  ·  ↓ defender  ·  S giro (fúria cheia)', W/2, H-22);
+  ctx.fillText('← → mover  ·  D chute  ·  A soco  ·  ↓ defender  ·  S giro (fúria)  ·  W Hadouken', W/2, H-22);
   if(fight.you.fury>=FURY_MAX && !fight.result && fight.intro<=0){
     const a=0.5+0.5*Math.sin(Date.now()/160);
     ctx.globalAlpha=a; ctx.fillStyle='#7a5cc0'; ctx.font='bold 17px "Comic Sans MS",cursive';
@@ -1588,9 +1705,9 @@ function drawHpBar(x,y,fr,label,right){
 // ============================================================
 //  GAME OF S.K.A.T.E. (E8) e BOSS do Bad Boy (E6)
 // ============================================================
-const TR_HINT = { kickflip:'→+A', '180':'→+B', '360':'↑+B', '540':'↑+A', shuv:'←+A', frontflip:'↓+B', impossible:'→+K', treflip:'←+K' };
-const SK_POOL = ['kickflip','180','360','540','shuv','frontflip','impossible'];   // manobras que o rival pode pedir
-function trLabel(n){ if(TRICKS[n]) return TRICKS[n].label; if(n==='nocomply') return 'NO COMPLY'; if(n==='boneless') return 'BONELESS'; if(n==='indy') return 'INDY GRAB'; return (n||'').toUpperCase(); }
+const TR_HINT = { kickflip:'→+D', '180':'→+A', '360':'↑+A', '540':'↑+D', shuv:'←+D', frontflip:'↓+A', bigspin:'←+A', impossible:'→+W', treflip:'←+W', hardflip:'↑+W' };
+const SK_POOL = ['kickflip','180','360','540','shuv','frontflip','bigspin','impossible'];   // manobras que o rival pode pedir
+function trLabel(n){ if(TRICKS[n]) return TRICKS[n].label; if(n==='nocomply') return 'NO COMPLY'; if(n==='boneless') return 'BONELESS'; if(n==='indy') return 'INDY GRAB'; if(n==='onefoot') return 'OLLIE ONE FOOT'; return (n||'').toUpperCase(); }
 function trHint(n){ return TR_HINT[n]||''; }
 // agora o S.K.A.T.E. usa a MESMA jogabilidade: você skata de verdade e ENCAIXA as manobras
 function startSkateGame(name, skill, context){
@@ -1692,13 +1809,15 @@ function drawMiniSkater(x, facing, anim, you, trickName){
   const k = anim>0 ? (1-anim/34) : 0;
   // qual parte gira (igual ao jogo principal): spin/frontflip/spinflip = corpo; shuv = board no plano; flip = board no eixo
   const bodySpin  = (kind==='spin'||kind==='frontflip'||kind==='spinflip') ? k*Math.PI*2 : 0;
-  const boardSpin = (kind==='shuv'||kind==='frontflip') ? k*Math.PI*2 : 0;
-  const boardFlip = (kind==='flip'||kind==='spinflip') ? k*Math.PI*2 : 0;
+  const bodyYaw   = (kind==='bigspin') ? k*Math.PI : 0;        // big spin: 180 horizontal
+  const boardSpin = (kind==='shuv'||kind==='frontflip'||kind==='bigspin') ? k*Math.PI*2 : (kind==='hardflip'? k*Math.PI : 0);
+  const boardFlip = (kind==='flip'||kind==='spinflip'||kind==='hardflip') ? k*Math.PI*2 : 0;
   ctx.save(); ctx.translate(x, gy); ctx.scale(facing,1);
   if(anim>0) ctx.translate(0, -Math.sin(k*Math.PI)*34);       // pulinho
-  // CORPO (só gira em spins)
+  // CORPO (gira em spins; vira na horizontal no big spin)
   ctx.save();
   if(bodySpin){ ctx.translate(0,hipY); ctx.rotate(bodySpin); ctx.translate(0,-hipY); }
+  if(bodyYaw) ctx.scale(Math.cos(bodyYaw),1);
   sketchLine(0,hipY,0,shoY,col,3);
   sketchLine(0,shoY+6,12,hipY-4,col,2.5); sketchLine(0,shoY+6,-10,hipY-6,col,2.5);
   sketchLine(0,hipY,-9,0,col,3); sketchLine(0,hipY,9,0,col,3);
