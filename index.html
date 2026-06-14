@@ -33,7 +33,7 @@
     <kbd>Espaço</kbd> Ollie (segure p/ subir) · <kbd>↓</kbd> Manual · pule em trilhos p/ <b>Grind</b> (segure <kbd>↑</kbd> = Crooked)<br>
     Desvie do <b>patinete</b> · <b>rampa</b> 🚀 p/ voar · pule a <b>escadaria</b> · pegue a <b>estrela</b> ✨ (gravidade baixa)<br>
     No ar: <kbd>→</kbd>+<kbd>A</kbd> Kickflip · <kbd>→</kbd>+<kbd>B</kbd> 180 · <kbd>↑</kbd>+<kbd>B</kbd> 360 ·
-    <kbd>↑</kbd>+<kbd>A</kbd> 540 · <kbd>←</kbd>+<kbd>A</kbd> Shuv · <kbd>↓</kbd>+<kbd>B</kbd> Bigspin · <kbd>→</kbd>+<kbd>K</kbd> Impossible · <kbd>B</kbd> (no ar) Indy Grab · <kbd>B</kbd> (no grind) Board Slide ·
+    <kbd>↑</kbd>+<kbd>A</kbd> 540 · <kbd>←</kbd>+<kbd>A</kbd> Shuv · <kbd>↓</kbd>+<kbd>B</kbd> Front Flip · <kbd>→</kbd>+<kbd>K</kbd> Impossible · <kbd>B</kbd> (no ar) Indy Grab · <kbd>B</kbd> (no grind) Board Slide ·
     <kbd>S</kbd> Especial 900 · <kbd>M</kbd> som · <kbd>P</kbd> pause · <kbd>R</kbd> reset
   </div>
 </div>
@@ -207,7 +207,7 @@ const TRICKS = {
   'shuv':     { total:Math.PI,    label:'POP SHUV', pts:130, dir: 1, kind:'shuv',    spd:0.22 },
   'kickflip': { total:Math.PI*2,  label:'KICKFLIP', pts:250, dir: 1, kind:'flip',    spd:0.26 },
   '360':      { total:Math.PI*2,  label:'360 SPIN', pts:300, dir: 1, kind:'spin',    spd:0.17 },
-  'bigspin':  { total:Math.PI*2,  label:'BIGSPIN',  pts:350, dir: 1, kind:'bigspin', spd:0.19 },
+  'frontflip':  { total:Math.PI*2,  label:'FRONT FLIP',  pts:350, dir: 1, kind:'frontflip', spd:0.19 },
   '540':      { total:Math.PI*3,  label:'540',      pts:550, dir: 1, kind:'spin',    spd:0.18 },
   '900':      { total:Math.PI*5,  label:'900!',     pts:1000,dir: 1, kind:'spin',    spd:0.30 },
   '1080flip': { total:Math.PI*6,  label:'1080 KICKFLIP!', pts:2000, dir:1, kind:'spinflip', spd:0.32 },
@@ -301,8 +301,8 @@ function hitMissionFlow(flow){
   if(flow>=m.target){ m.prog=m.need; m.done=true; nextMission(); }
 }
 function advanceMission(name){
-  if(['180','shuv','360','kickflip','bigspin','540','900','1080flip','treflip','impossible'].includes(name)) hitMission('spin180',1);
-  if(['360','kickflip','bigspin','540','900','1080flip','treflip'].includes(name)) hitMission('spin360',1);
+  if(['180','shuv','360','kickflip','frontflip','540','900','1080flip','treflip','impossible'].includes(name)) hitMission('spin180',1);
+  if(['360','kickflip','frontflip','540','900','1080flip','treflip'].includes(name)) hitMission('spin360',1);
   if(['900','1080flip'].includes(name)) hitMission('special',1);
 }
 function landOllie(){
@@ -429,7 +429,7 @@ function tryTrick(){
   else if (keys['ArrowRight'] && keys['KeyA']) t='kickflip';
   else if (keys['ArrowRight'] && keys['KeyB']) t='180';
   else if (keys['ArrowLeft']  && keys['KeyA']) t='shuv';
-  else if (keys['ArrowDown']  && keys['KeyB']) t='bigspin';
+  else if (keys['ArrowDown']  && keys['KeyB']) t='frontflip';
   if(t){
     const d=TRICKS[t];
     player.trick={ name:t, total:d.total, rot:0, dir:d.dir, kind:d.kind };
@@ -776,12 +776,12 @@ function update(){
     if(player.trick){
       const t=player.trick, before=t.rot;
       t.rot=Math.min(t.rot + (TRICKS[t.name].spd||0.2)*(aged()?1.12:1), t.total);   // trucks soltos giram mais fácil (E2)
-      // spin = corpo gira; shuv/flip = só o skate; bigspin = corpo + skate
+      // spin = corpo gira; shuv/flip = só o skate; frontflip = corpo + skate
       if(t.kind==='spin'){ player.bodyAngle=t.dir*t.rot; }
       else if(t.kind==='shuv'){ player.boardAngle=t.dir*t.rot; }
       else if(t.kind==='flip'){ player.boardFlip=t.rot; }                                      // kickflip: flip no eixo longo (scaleY)
       else if(t.kind==='impossible'){ player.boardAngle=t.dir*t.rot; }                          // impossible: shape enrola end-over-end (giro no plano)
-      else if(t.kind==='bigspin'){ player.bodyAngle=t.dir*t.rot; player.boardAngle=t.dir*t.rot; }
+      else if(t.kind==='frontflip'){ player.bodyAngle=t.dir*t.rot; player.boardAngle=t.dir*t.rot; }
       else if(t.kind==='spinflip'){ player.bodyAngle=t.dir*t.rot; player.boardFlip=t.rot; }  // 1080 + kickflip
       else if(t.kind==='treflip'){ player.boardAngle=-t.dir*t.rot; player.boardFlip=t.rot; }  // 360 kickflip: shape (shuv invertido + flip)
       // "pop": o skate sobe em relação aos pés e volta (arco suave no meio da manobra)
@@ -1588,8 +1588,8 @@ function drawHpBar(x,y,fr,label,right){
 // ============================================================
 //  GAME OF S.K.A.T.E. (E8) e BOSS do Bad Boy (E6)
 // ============================================================
-const TR_HINT = { kickflip:'→+A', '180':'→+B', '360':'↑+B', '540':'↑+A', shuv:'←+A', bigspin:'↓+B', impossible:'→+K', treflip:'←+K' };
-const SK_POOL = ['kickflip','180','360','540','shuv','bigspin','impossible'];   // manobras que o rival pode pedir
+const TR_HINT = { kickflip:'→+A', '180':'→+B', '360':'↑+B', '540':'↑+A', shuv:'←+A', frontflip:'↓+B', impossible:'→+K', treflip:'←+K' };
+const SK_POOL = ['kickflip','180','360','540','shuv','frontflip','impossible'];   // manobras que o rival pode pedir
 function trLabel(n){ if(TRICKS[n]) return TRICKS[n].label; if(n==='nocomply') return 'NO COMPLY'; if(n==='boneless') return 'BONELESS'; if(n==='indy') return 'INDY GRAB'; return (n||'').toUpperCase(); }
 function trHint(n){ return TR_HINT[n]||''; }
 // agora o S.K.A.T.E. usa a MESMA jogabilidade: você skata de verdade e ENCAIXA as manobras
@@ -1690,9 +1690,9 @@ function drawMiniSkater(x, facing, anim, you, trickName){
   const gy=GROUND+player.h/2+6, col='#2a2a2a', hipY=-28, shoY=-56, headY=-67;
   const kind = (anim>0 && trickName && TRICKS[trickName]) ? TRICKS[trickName].kind : null;
   const k = anim>0 ? (1-anim/34) : 0;
-  // qual parte gira (igual ao jogo principal): spin/bigspin/spinflip = corpo; shuv = board no plano; flip = board no eixo
-  const bodySpin  = (kind==='spin'||kind==='bigspin'||kind==='spinflip') ? k*Math.PI*2 : 0;
-  const boardSpin = (kind==='shuv'||kind==='bigspin') ? k*Math.PI*2 : 0;
+  // qual parte gira (igual ao jogo principal): spin/frontflip/spinflip = corpo; shuv = board no plano; flip = board no eixo
+  const bodySpin  = (kind==='spin'||kind==='frontflip'||kind==='spinflip') ? k*Math.PI*2 : 0;
+  const boardSpin = (kind==='shuv'||kind==='frontflip') ? k*Math.PI*2 : 0;
   const boardFlip = (kind==='flip'||kind==='spinflip') ? k*Math.PI*2 : 0;
   ctx.save(); ctx.translate(x, gy); ctx.scale(facing,1);
   if(anim>0) ctx.translate(0, -Math.sin(k*Math.PI)*34);       // pulinho
